@@ -1,8 +1,8 @@
 // Service Worker tối giản cho GitHub Pages: network-first cho trang, KHÔNG ép cập nhật.
 // Chỉ để trang cài được lên màn hình chính. Chỉ xử lý GET CÙNG origin: request tới API (khác origin,
 // Supabase) KHÔNG bị chặn và KHÔNG bao giờ được lưu vào cache — dữ liệu học viên không nằm ở đây.
-const TEN_CACHE = 'tcdat-pages-v1';
-const TAI_SAN = ['./icon-192.png', './icon-512.png', './manifest.json', './app.js'];
+const TEN_CACHE = 'tcdat-pages-v2';
+const TAI_SAN = ['./icon-192.png', './icon-512.png', './manifest.json', './app.js', './app.css'];
 
 self.addEventListener('install', (e) => {
     e.waitUntil(caches.open(TEN_CACHE).then((c) => c.addAll(TAI_SAN)).catch(() => {}));
