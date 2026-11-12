@@ -43,9 +43,12 @@
                 gv: { mo: false, loi: '', ds: [] },
                 ghim: [],
                 ghimTim: '', ghimTT: '', ghimHang: '',
+                mangOk: navigator.onLine !== false,   // đèn Online/Offline ở đầu trang
 
                 // ---------- khởi động ----------
                 async khoiDong() {
+                    window.addEventListener('online', () => { this.mangOk = true; });
+                    window.addEventListener('offline', () => { this.mangOk = false; });
                     this.token = localStorage.getItem(KHOA_TOKEN) || '';
                     this.taiPhienBan();
                     if (this.token) { await this.nhanQuyen(); }
@@ -234,9 +237,12 @@
                     return { tim: 'Tra cứu DAT', xe: 'Theo xe', khoa: 'Khóa học', ghim: 'Ghim ghi nhớ' }[this.tab] || '';
                 },
                 phuDe() {
-                    return { tim: 'Tìm học viên, xe, giáo viên', xe: 'Danh sách xe và số học viên',
-                             khoa: 'Khóa đã phân xe', ghim: 'Lưu trên máy này' }[this.tab] || '';
+                    return { tim: 'Tìm học viên để biết xe và giáo viên DAT',
+                             xe: 'Tra nhanh một biển số và học viên trên xe',
+                             khoa: 'Các khóa đã phân xe',
+                             ghim: 'Học viên bạn đã ghim — lưu ngay trên máy này' }[this.tab] || '';
                 },
+                taiLai() { window.location.reload(); },
 
                 // ---------- tiện ích văn bản ----------
                 // 'đ' KHÔNG tách được bằng NFD nên phải đổi tay; dấu tổ hợp viết bằng mã \u03xx
