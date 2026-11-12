@@ -18,7 +18,7 @@
             return {
                 token: '',
                 chuaCauHinh: CHUA_CAU_HINH,
-                user: { ndk_name: '', username: '', is_admin: false, quyen: [] },
+                user: { ndk_name: '', username: '', is_admin: false, quyen: [], uy_quyen: [] },
                 // Ghi nhớ đăng nhập MẶC ĐỊNH TẮT: token sống lâu trên máy có thể là máy dùng chung
                 dn: { username: '', password: '', ghiNho: false, loi: '', dang: false },
                 tab: 'tim',
@@ -208,7 +208,7 @@
                     }
                     this.ghim = [];
                     this.thuHoiAnh();
-                    this.user = { ndk_name: '', username: '', is_admin: false, quyen: [] };
+                    this.user = { ndk_name: '', username: '', is_admin: false, quyen: [], uy_quyen: [] };
                     this.token = '';
                     localStorage.removeItem(KHOA_TOKEN);
                     this.ketQua = { results: [], total: 0, bi_cat: 0, quyen: null };
@@ -663,17 +663,23 @@
                         const khoa = {};
                         (d.danh_sach || []).forEach(x => { khoa[x.TrungTam + '|' + x.MaKH + '|' + x.MaDK] = 1; });
                         this.dsXong = { ds: d.danh_sach || [], khoa: khoa, dang: false, loi: '' };
+                        // chủ hồ sơ được xem hộ → hiện nút "Đã chạy xong" cho học viên của họ
+                        this.user.uy_quyen = Array.isArray(d.uy_quyen) ? d.uy_quyen : [];
                     } catch (e) {
                         this.dsXong.dang = false;
                         this.dsXong.loi = e.thongBao || 'Lỗi';
                     }
                 },
                 daXong(r) { return !!this.dsXong.khoa[this.khoaGhim(r)]; },
-                // Chỉ để ẩn/hiện nút — máy chủ vẫn là bên quyết định (admin hoặc đúng chủ hồ sơ)
+                // Chỉ để ẩn/hiện nút — máy chủ vẫn là bên quyết định
+                // (admin, đúng chủ hồ sơ, hoặc người được ủy quyền xem hộ hồ sơ của chủ đó)
                 coTheXacNhan(r) {
                     if (this.user.is_admin) { return true; }
-                    const ten = this.boDauHs(this.user.ndk_name);
-                    return !!(r.NguoiQuanLy && ten && this.boDauHs(r.NguoiQuanLy) === ten);
+                    const chu = this.boDauHs(r.NguoiQuanLy);
+                    if (!chu) { return false; }
+                    const duoc = [this.user.ndk_name].concat(this.user.uy_quyen || [])
+                        .map(t => this.boDauHs(t)).filter(Boolean);
+                    return duoc.indexOf(chu) >= 0;
                 },
                 // "Đang chạy" = ghim trừ các khóa đã xong
                 get dangChay() { return this.ghim.filter(r => !this.daXong(r)); },
