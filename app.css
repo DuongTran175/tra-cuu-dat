@@ -27,14 +27,17 @@ body { margin: 0; background: var(--bg); color: var(--text-main);
        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
        font-size: 15px; line-height: 1.4; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; cursor: pointer; color: inherit; }
-input, select { font: inherit; font-size: 14px; width: 100%; height: 44px; padding: 0 16px; border-radius: 14px;
+/* 16px là NGƯỠNG của iPhone: ô nhập chữ nhỏ hơn 16px thì Safari tự phóng to cả trang khi chạm vào.
+   Không chặn bằng maximum-scale (làm người cần phóng to để đọc không phóng được). */
+input, select, textarea { font: inherit; font-size: 16px; width: 100%; height: 44px; padding: 0 16px; border-radius: 14px;
                 border: 2px solid var(--border); background: var(--input-bg); color: var(--text-main);
                 outline: none; transition: border-color .2s, box-shadow .2s; }
+textarea { height: auto; min-height: 84px; padding: 10px 16px; line-height: 1.4; resize: vertical; }
 select { appearance: none; -webkit-appearance: none; padding-right: 36px; cursor: pointer;
          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
          background-repeat: no-repeat; background-position: right 12px center; text-overflow: ellipsis; }
-input:focus, select:focus, .o-chon:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(7,129,167,.12); }
-input::placeholder { color: var(--text-hint); }
+input:focus, select:focus, textarea:focus, .o-chon:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(7,129,167,.12); }
+input::placeholder, textarea::placeholder { color: var(--text-hint); }
 label { display: block; font-size: 12px; font-weight: 600; color: var(--text-sub); margin: 10px 0 4px; }
 svg { flex-shrink: 0; }
 .ic { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2;
@@ -278,3 +281,33 @@ svg { flex-shrink: 0; }
 .hv-ten-gon { font-weight: 700; }
 .khoa-chi-tiet-dau { margin-bottom: 8px; }
 .canh-bao-quyen.nhe { font-weight: 400; }
+
+/* ---------- giáo viên: ảnh + hồ sơ ---------- */
+.gv-the { display: flex; gap: 12px; align-items: flex-start; }
+.gv-anh-khung { width: 84px; height: 108px; flex-shrink: 0; border-radius: 12px; overflow: hidden;
+                background: var(--accent-light); display: flex; align-items: center; justify-content: center; }
+.gv-anh { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gv-thong-tin { flex: 1; min-width: 0; }
+.anh-nho { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex-shrink: 0; background: var(--accent-light); }
+
+/* ---------- Máy DAT + xác nhận chạy xong ---------- */
+.phan-doan { display: flex; gap: 4px; margin: 0 0 12px; background: var(--card-bg); border: 1px solid var(--border);
+             border-radius: 12px; padding: 4px; }
+.phan-doan button { flex: 1; min-width: 0; height: 38px; border: 0; border-radius: 9px; background: none;
+                    font-weight: 700; font-size: 13px; color: var(--text-sub); }
+.phan-doan button.active { background: var(--accent-light); color: var(--accent-text); }
+.badge.xong { background: rgba(46,125,50,.14); color: var(--success); }
+.badge.xam { background: var(--border); color: var(--text-sub); }
+.badge.nk-chay_xong { background: rgba(46,125,50,.14); color: var(--success); }
+.badge.nk-ban_giao { background: var(--accent-light); color: var(--accent-text); }
+.badge.nk-hoan_tac { background: var(--warning-bg); color: var(--warning); }
+.may-giu { border-left: 4px solid var(--accent); }
+.may-nguoi { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.nk-dong.da-an { opacity: .6; border-style: dashed; }
+.nk-tren { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.nk-chuyen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; word-break: break-word; margin-bottom: 2px; }
+.mui-ten { color: var(--text-hint); }
+.nk-ghi-chu, .xong-ghi-chu { margin-top: 6px; padding: 6px 10px; border-radius: 8px; background: var(--bg); font-size: 13px;
+              word-break: break-word; white-space: pre-wrap; }
+.hang-chon { display: flex; gap: 8px; align-items: center; }
+.hang-chon .o-chon { flex: 1; min-width: 0; }
