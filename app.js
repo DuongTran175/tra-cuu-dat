@@ -340,11 +340,19 @@
                                     giao_vien: this.goiY.giao_vien, nguoi_nop: this.goiY.nguoi_quan_ly };
                     let ds = nguon[loai] || [];
                     let nhan = {};
+                    let timKem = {};
                     if (loai === 'nguoi_dung') {
-                        // Tên + tên đăng nhập, cả danh sách tài khoản; ô tìm bỏ dấu (nhãn chứa cả hai)
-                        ds = this.dsNguoi.map(n => { const t = n.ten + ' (' + n.username + ')'; nhan[t] = n; return t; });
+                        // Nhãn CHỈ là tên người đăng ký (không hiện tên đăng nhập); gõ tên đăng nhập vẫn tìm ra (timKem)
+                        ds = this.dsNguoi.map(n => {
+                            let t = String(n.ten || 'Chưa đặt tên'), k = 1;
+                            const goc = t;
+                            while (nhan[t]) { k += 1; t = goc + ' (' + k + ')'; }      // phòng function cũ chưa khử trùng
+                            nhan[t] = n;
+                            timKem[t] = this.boDau(t + ' ' + n.username);
+                            return t;
+                        });
                     }
-                    this.chon = { mo: true, loai: loai, tim: '', ds: ds, dich: dich || '', nhan: nhan };
+                    this.chon = { mo: true, loai: loai, tim: '', ds: ds, dich: dich || '', nhan: nhan, timKem: timKem };
                 },
                 tenChon() {
                     return { khoa: 'Chọn khóa', bien_so: 'Chọn biển số', giao_vien: 'Chọn giáo viên',
@@ -374,7 +382,8 @@
                 },
                 get chonLoc() {
                     const q = this.boDau(this.chon.tim).trim();
-                    const ds = q ? this.chon.ds.filter(g => this.boDau(g).indexOf(q) >= 0) : this.chon.ds;
+                    const tk = this.chon.timKem || {};
+                    const ds = q ? this.chon.ds.filter(g => (tk[g] || this.boDau(g)).indexOf(q) >= 0) : this.chon.ds;
                     return ds.slice(0, 200);       // 200 dòng đầu là đủ chọn; gõ thêm để thu hẹp
                 },
                 // Chữ người dùng gõ mà không có trong danh sách → cho "+ Dùng '…'"
@@ -684,11 +693,11 @@
                 },
 
                 async moXacNhan(r) {
-                    this.xn = { mo: true, r: r, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' };
+                    this.xn = { mo: true, r: r, kieu: 'kho', den: 'KHO', denTen: 'Về kho', ghiChu: '', dang: false, loi: '' };
                     await this.taiNguoi();
                 },
                 async taiNguoi() {
-                    if (this.daTaiNguoi) { return; }
+                    // Mỗi lần mở hộp tải lại (tài khoản mới hiện ngay); danh sách cũ vẫn dùng được trong lúc chờ
                     try {
                         const d = await this.api('/may-dat/nguoi-dung');
                         this.dsNguoi = Array.isArray(d) ? d : [];
@@ -697,7 +706,7 @@
                 },
                 chonKieuXn(k) {
                     this.xn.kieu = k;
-                    if (k === 'kho') { this.xn.den = 'KHO'; this.xn.denTen = ''; }
+                    if (k === 'kho') { this.xn.den = 'KHO'; this.xn.denTen = 'Về kho'; }
                     else { this.xn.den = ''; this.xn.denTen = ''; }
                 },
                 async guiXacNhan() {

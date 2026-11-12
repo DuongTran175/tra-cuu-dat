@@ -609,7 +609,7 @@
                         <button type="button" :class="xn.kieu === 'nguoi' ? 'active' : ''" @click="chonKieuXn('nguoi')">Giao cho…</button>
                     </div>
                     <button type="button" class="o-chon" x-show="xn.kieu === 'nguoi'" @click="moChon('nguoi_dung', 'xn.den')" aria-label="Chọn người nhận máy">
-                        <span :class="xn.den ? 'da-chon' : 'hint'" x-text="xn.den ? xn.denTen + ' (' + xn.den + ')' : 'Chọn người nhận máy'"></span>
+                        <span :class="xn.den ? 'da-chon' : 'hint'" x-text="xn.den ? xn.denTen : 'Chọn người nhận máy'"></span>
                     </button>
                     <label for="xn-ghi-chu">Ghi chú (không bắt buộc)</label>
                     <textarea id="xn-ghi-chu" x-model="xn.ghiChu" maxlength="300" rows="3" placeholder="Ví dụ: máy còn pin 80%"></textarea>
@@ -637,16 +637,16 @@
                     <label>Người giao</label>
                     <div class="hang-chon">
                         <button type="button" class="o-chon" @click="moChon('nguoi_dung', 'bg.tu')" aria-label="Chọn người giao">
-                            <span class="da-chon" x-text="bg.tu === 'KHO' ? 'Kho' : bg.tuTen + ' (' + bg.tu + ')'"></span>
+                            <span class="da-chon" x-text="bg.tu === 'KHO' ? 'Kho' : bg.tuTen"></span>
                         </button>
                         <button type="button" class="nut phu nho" @click="bg.tu = 'KHO'; bg.tuTen = 'Kho'">Kho</button>
                     </div>
                     <label>Người nhận</label>
                     <div class="hang-chon">
                         <button type="button" class="o-chon" @click="moChon('nguoi_dung', 'bg.den')" aria-label="Chọn người nhận">
-                            <span :class="bg.den ? 'da-chon' : 'hint'" x-text="bg.den ? (bg.den === 'KHO' ? 'Kho' : bg.denTen + ' (' + bg.den + ')') : 'Chọn người nhận'"></span>
+                            <span :class="bg.den ? 'da-chon' : 'hint'" x-text="bg.den ? (bg.den === 'KHO' ? 'Về kho' : bg.denTen) : 'Chọn người nhận'"></span>
                         </button>
-                        <button type="button" class="nut phu nho" @click="bg.den = 'KHO'; bg.denTen = 'Kho'">Kho</button>
+                        <button type="button" class="nut phu nho" @click="bg.den = 'KHO'; bg.denTen = 'Về kho'">Kho</button>
                     </div>
                     <label for="bg-ghi-chu">Ghi chú (không bắt buộc)</label>
                     <textarea id="bg-ghi-chu" x-model="bg.ghiChu" maxlength="300" rows="3" placeholder="Ví dụ: giao lại sau buổi sáng"></textarea>
@@ -690,7 +690,7 @@
                 <input type="search" x-model="chon.tim" autocomplete="off" placeholder="Gõ để lọc (không cần dấu)">
                 <button type="button" class="chon-dong" x-show="chonDungRieng" @click="chonXong(chonDungRieng)"
                         x-text="'+ Dùng “' + chonDungRieng + '”'"></button>
-                <button type="button" class="chon-dong" @click="chonXong('')">Tất cả (bỏ chọn)</button>
+                <button type="button" class="chon-dong" x-show="chon.loai !== 'nguoi_dung'" @click="chonXong('')">Tất cả (bỏ chọn)</button>
                 <template x-for="g in chonLoc" :key="g">
                     <button type="button" class="chon-dong" :class="loc[chon.loai] === g ? 'dung' : ''"
                             @click="chonXong(g)" x-text="g"></button>
