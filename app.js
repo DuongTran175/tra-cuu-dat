@@ -601,7 +601,9 @@
                 },
 
                 // Bộ lọc dùng chung cho 2 mục Ghim: lấy danh sách trung tâm/hạng theo mục đang xem
-                get ghimNguon() { return this.ghimMuc === 'xong' ? (this.dsXong.ds || []) : this.ghim; },
+                get ghimNguon() { return this.ghimMuc === 'xong' ? this.xongCuaToi : this.ghim; },
+                // Mục "Đã hoàn thành DAT": chỉ HV tài khoản này đã ghim hoặc chính mình xác nhận chạy xong
+                get xongCuaToi() { return (this.dsXong.ds || []).filter(r => this.daGhim(r) || r.NguoiGhi === (this.user && this.user.username)); },
                 get ghimDsTT() {
                     const t = {};
                     this.ghimNguon.forEach(r => { if (r.TrungTam) { t[r.TrungTam] = 1; } });
@@ -694,7 +696,7 @@
                 },
                 get xongLoc() {
                     const q = this.boDau(this.ghimTim).trim();
-                    return (this.dsXong.ds || []).filter(r =>
+                    return this.xongCuaToi.filter(r =>
                         (!this.ghimTT || r.TrungTam === this.ghimTT)
                         && (!this.ghimHang || r.HangGPLX === this.ghimHang)
                         && (!q || this.chiSo([r.HoVaTen, r.MaDK, r.BienSoXe, r.NguoiGhiTen]).indexOf(q) >= 0));

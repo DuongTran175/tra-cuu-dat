@@ -277,9 +277,9 @@
                     <button type="button" :class="ghimMuc === 'dang' ? 'active' : ''" @click="ghimMuc = 'dang'"
                             x-text="'Đang chạy (' + dangChay.length + ')'"></button>
                     <button type="button" :class="ghimMuc === 'xong' ? 'active' : ''" @click="ghimMuc = 'xong'; taiXong()"
-                            x-text="'Đã hoàn thành DAT (' + dsXong.ds.length + ')'"></button>
+                            x-text="'Đã hoàn thành DAT (' + xongCuaToi.length + ')'"></button>
                 </div>
-                <div class="card the-loc" x-show="(ghimMuc === 'dang' && ghim.length > 0) || (ghimMuc === 'xong' && dsXong.ds.length > 0)">
+                <div class="card the-loc" x-show="(ghimMuc === 'dang' && ghim.length > 0) || (ghimMuc === 'xong' && xongCuaToi.length > 0)">
                     <input id="g-tim" type="search" x-model="ghimTim" @input="cuonKetQuaGhim()" autocomplete="off" placeholder="Lọc theo biển số, tên, mã ĐK…" aria-label="Lọc phần đã ghim">
                     <div class="luoi" style="margin-top:8px;">
                         <select id="g-tt" x-model="ghimTT" aria-label="Trung tâm">
@@ -373,13 +373,13 @@
                         <svg class="ic" width="40" height="40"><use href="#i-alert"/></svg>
                         <div x-text="dsXong.loi"></div>
                     </div>
-                    <div class="empty-state" x-show="dsXong.dang && dsXong.ds.length === 0"><div>Đang tải…</div></div>
-                    <div class="empty-state" x-show="!dsXong.dang && !dsXong.loi && dsXong.ds.length === 0">
+                    <div class="empty-state" x-show="dsXong.dang && xongCuaToi.length === 0"><div>Đang tải…</div></div>
+                    <div class="empty-state" x-show="!dsXong.dang && !dsXong.loi && xongCuaToi.length === 0">
                         <svg class="ic" width="40" height="40"><use href="#i-may"/></svg>
-                        <div>Chưa có học viên nào được xác nhận chạy xong DAT.</div>
+                        <div>Chưa có học viên nào bạn ghim hoặc bạn xác nhận chạy xong.</div>
                     </div>
-                    <div class="dem-hang" x-show="dsXong.ds.length > 0">
-                        <span x-text="(xongLoc.length === dsXong.ds.length ? dsXong.ds.length : xongLoc.length + '/' + dsXong.ds.length) + ' học viên đã hoàn thành'"></span>
+                    <div class="dem-hang" x-show="xongCuaToi.length > 0">
+                        <span x-text="(xongLoc.length === xongCuaToi.length ? xongCuaToi.length : xongLoc.length + '/' + xongCuaToi.length) + ' học viên đã hoàn thành'"></span>
                     </div>
                     <template x-for="r in xongLoc" :key="r.TrungTam + '|' + r.MaKH + '|' + r.MaDK">
                         <div class="card">
