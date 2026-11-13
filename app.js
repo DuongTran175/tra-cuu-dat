@@ -53,7 +53,12 @@
                 may: { bien: '', dang: false, loi: '', co: false, kq: null },
                 dsNguoi: [], daTaiNguoi: false,
                 xn: { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' },
-                bg: { mo: false, bien: '', tu: 'KHO', tuTen: 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' },
+                bg: { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', ghiChu: '', nkCuoi: null, dang: false, loi: '' },
+                // Lệnh bàn giao chờ xác nhận (GĐ1 kho máy DAT): hộp "Chờ bạn xác nhận", chấm số, số trên icon
+                cho: { cho_toi: [], toi_gui: [], so: 0, kho: null, dang: false },
+                hopCho: { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' },
+                // Trang Quản lý kho DAT (chỉ tài khoản có quyền QUANLY_KHO_DAT)
+                kho: { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false },
                 an: { mo: false, id: 0, lyDo: '', dang: false, loi: '' },
                 mangOk: navigator.onLine !== false,   // đèn Online/Offline ở đầu trang
                 // Hộp Cài đặt: đổi mật khẩu
@@ -64,6 +69,13 @@
                     window.addEventListener('online', () => { this.mangOk = true; });
                     window.addEventListener('offline', () => { this.mangOk = false; });
                     this.theoDoiVungNhin();
+                    // Hộp "Chờ bạn xác nhận": hỏi lại khi quay về trang và mỗi 60 giây lúc trang đang hiện
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.visibilityState === 'visible') { this.taiCho(true); }
+                    });
+                    setInterval(() => {
+                        if (document.visibilityState === 'visible') { this.taiCho(false); }
+                    }, 60000);
                     this.token = localStorage.getItem(KHOA_TOKEN) || '';
                     this.taiPhienBan();
                     if (this.token) { await this.nhanQuyen(); }
@@ -180,7 +192,7 @@
                         this.napGhim();
                         this.khongCoQuyen = (d.quyen || []).indexOf('TRACUU_DAT') < 0
                             ? 'Tài khoản của bạn chưa được cấp quyền Tra cứu biển số DAT.' : '';
-                        if (!this.khongCoQuyen) { this.taiGoiY(); this.taiXong(); }
+                        if (!this.khongCoQuyen) { this.taiGoiY(); this.taiXong(); this.taiCho(true); }
                     } catch (e) {
                         if (e && e.ma !== 403 && e.thongBao) { this.bao(e.thongBao); }
                     }
@@ -220,7 +232,11 @@
                     this.dsNguoi = [];
                     this.daTaiNguoi = false;
                     this.xn = { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' };
-                    this.bg = { mo: false, bien: '', tu: 'KHO', tuTen: 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' };
+                    this.bg = { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', ghiChu: '', nkCuoi: null, dang: false, loi: '' };
+                    this.cho = { cho_toi: [], toi_gui: [], so: 0, kho: null, dang: false };
+                    this.hopCho = { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' };
+                    this.kho = { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false };
+                    this.capNhatHuy();
                     this.an = { mo: false, id: 0, lyDo: '', dang: false, loi: '' };
                     this.cd = { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
                     this.ghimTim = '';
@@ -251,15 +267,18 @@
                     window.scrollTo(0, 0);
                     if (this.khongCoQuyen) { return; }
                     if (t === 'ghim' || t === 'may') { this.taiXong(); }      // đổi tab thì nạp lại danh sách đã xong
+                    if (t === 'may') { this.taiCho(false); }
+                    if (t === 'kho') { this.taiKho(); this.taiCho(false); }
                 },
 
                 tieuDe() {
-                    return { tim: 'Tra cứu DAT', ghim: 'Ghim ghi nhớ', may: 'Máy DAT' }[this.tab] || '';
+                    return { tim: 'Tra cứu DAT', ghim: 'Ghim ghi nhớ', may: 'Máy DAT', kho: 'Kho DAT' }[this.tab] || '';
                 },
                 phuDe() {
                     return { tim: 'Tìm học viên để biết xe và giáo viên DAT',
                              ghim: 'Học viên bạn đã ghim — lưu ngay trên máy này',
-                             may: 'Ai đang giữ máy DAT, lịch sử bàn giao' }[this.tab] || '';
+                             may: 'Ai đang giữ máy DAT, lịch sử bàn giao',
+                             kho: 'Mọi máy DAT: ở kho, đang ở ai, đang chuyển' }[this.tab] || '';
                 },
                 taiLai() { window.location.reload(); },
 
@@ -705,7 +724,18 @@
                 async moXacNhan(r) {
                     if (r && r.CuaBan === false) { return; }      // HV người khác: server cũng từ chối, chặn sớm cho gọn
                     this.xn = { mo: true, r: r, kieu: 'kho', den: 'KHO', denTen: 'Về kho', ghiChu: '', dang: false, loi: '' };
+                    // Máy đang có lệnh chờ (của mình hoặc đang chuyển): chọn sẵn "Tôi vẫn giữ máy" — một xe nhiều học viên
+                    const chuan = String((r && r.BienSoXe) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                    if (chuan && (this.cho.toi_gui || []).some(l => l.trang_thai === 'cho' && l.bien_chuan === chuan)) {
+                        this.chonKieuXn('giu');
+                    }
                     await this.taiNguoi();
+                    if (chuan && this.xn.mo && this.xn.r === r && this.xn.kieu !== 'giu') {
+                        try {
+                            const d = await this.api('/may-dat/xe', { bien_so: r.BienSoXe });
+                            if (d && d.dang_chuyen && this.xn.mo && this.xn.r === r && this.xn.kieu === 'kho' && !this.xn.ghiChu) { this.chonKieuXn('giu'); }
+                        } catch (e) { /* không đọc được tình trạng máy: giữ lựa chọn mặc định */ }
+                    }
                 },
                 async taiNguoi() {
                     // Mỗi lần mở hộp tải lại (tài khoản mới hiện ngay); danh sách cũ vẫn dùng được trong lúc chờ
@@ -718,6 +748,7 @@
                 chonKieuXn(k) {
                     this.xn.kieu = k;
                     if (k === 'kho') { this.xn.den = 'KHO'; this.xn.denTen = 'Về kho'; }
+                    else if (k === 'giu') { this.xn.den = this.user.username; this.xn.denTen = 'Tôi'; }      // vẫn giữ máy: không tạo lệnh
                     else { this.xn.den = ''; this.xn.denTen = ''; }
                 },
                 async guiXacNhan() {
@@ -727,12 +758,18 @@
                     if ([...this.xn.ghiChu].length > TOI_DA_GHI_CHU) { this.xn.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
                     this.xn.dang = true;
                     try {
-                        await this.api('/dat-xong', {}, { body: {
+                        const d = await this.api('/dat-xong', {}, { body: {
                             trung_tam: this.xn.r.TrungTam, ma_kh: this.xn.r.MaKH, ma_dk: this.xn.r.MaDK,
                             den: this.xn.den, ghi_chu: this.xn.ghiChu } });
                         this.xn.mo = false;
-                        this.bao('Đã ghi nhận chạy xong DAT');
+                        // Giao cho người khác / về kho: máy CHƯA đổi tay cho tới khi bên kia bấm Nhận
+                        const coLenh = !!(d && d.ket_qua && d.ket_qua.lenh_id);
+                        const treoSan = !!(d && d.lenh_treo_san);
+                        this.bao(treoSan ? 'Đã ghi chạy xong — máy đang có lệnh chờ, không tạo lệnh mới'
+                                 : coLenh ? 'Đã ghi chạy xong — chờ ' + (this.xn.den === 'KHO' ? 'Kho' : this.xn.denTen) + ' xác nhận nhận máy'
+                                        : 'Đã ghi nhận chạy xong DAT');
                         await this.taiXong();
+                        this.taiCho(false);
                         if (this.may.co) { this.taiMay(); }
                     } catch (e) {
                         this.xn.loi = e.thongBao || 'Lỗi';
@@ -751,7 +788,7 @@
 
                 // ---------- tab Máy DAT ----------
                 mayRong() {
-                    return { bien_so: '', dang_giu: { nguoi: 'KHO', ten: 'Kho', luc: null, chua_ro: true }, lich_su: [] };
+                    return { bien_so: '', dang_giu: { nguoi: 'KHO', ten: 'Kho', luc: null, chua_ro: true }, dang_chuyen: null, nk_cuoi: null, lich_su: [] };
                 },
                 async taiMay() {
                     const b = String(this.may.bien || '').trim();
@@ -768,14 +805,180 @@
                     } finally { this.may.dang = false; }
                 },
                 nhanLoai(l) {
-                    return { chay_xong: 'Chạy xong', ban_giao: 'Bàn giao', hoan_tac: 'Hoàn tác' }[l] || l;
+                    return { chay_xong: 'Chạy xong', ban_giao: 'Bàn giao', hoan_tac: 'Hoàn tác',
+                             lenh_de_nghi: 'Đề nghị', lenh_tu_choi: 'Từ chối', lenh_huy: 'Hủy lệnh' }[l] || l;
                 },
-                async moBanGiao() {
+                // Khóa x-for cho dòng lịch sử: dòng nhật ký có id, sự kiện của lệnh không có id
+                khoaNk(h) { return h.id ? 'n' + h.id : 'l' + h.lenh_id + '-' + h.loai; },
+
+                // ---------- giao / nhận máy (tạo LỆNH, bên kia xác nhận) ----------
+                // Các kiểu: giao · tra_kho · nhan_bu · (kho) kho_giao · (kho) kho_ghi_thay
+                dsKieuBg() {
+                    const ds = [{ ma: 'giao', ten: 'Giao cho…' }, { ma: 'tra_kho', ten: 'Trả về kho' },
+                                { ma: 'nhan_bu', ten: 'Tôi đã nhận từ…' }];
+                    if (this.coQuyenKho()) {
+                        ds.push({ ma: 'kho_giao', ten: 'Kho giao cho…' }, { ma: 'kho_ghi_thay', ten: 'Kho ghi thay' });
+                    }
+                    return ds;
+                },
+                datKieuBg(k) {
+                    const me = this.user.username;
+                    const meTen = this.user.ndk_name || this.user.username;
                     const g = (this.may.kq && this.may.kq.dang_giu) || {};
-                    this.bg = { mo: true, bien: this.may.kq.bien_so || this.may.bien, tu: g.nguoi || 'KHO',
-                                tuTen: g.ten || 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' };
+                    this.bg.kieu = k;
+                    this.bg.loi = '';
+                    if (k === 'giao') { this.bg.tu = me; this.bg.tuTen = meTen; this.bg.den = ''; this.bg.denTen = ''; }
+                    else if (k === 'tra_kho') { this.bg.tu = me; this.bg.tuTen = meTen; this.bg.den = 'KHO'; this.bg.denTen = 'Kho'; }
+                    else if (k === 'nhan_bu') { this.bg.tu = ''; this.bg.tuTen = ''; this.bg.den = me; this.bg.denTen = meTen; }
+                    else if (k === 'kho_giao') { this.bg.tu = 'KHO'; this.bg.tuTen = 'Kho'; this.bg.den = ''; this.bg.denTen = ''; }
+                    else {      // kho_ghi_thay: mặc định từ người đang giữ
+                        this.bg.tu = g.nguoi || 'KHO'; this.bg.tuTen = g.ten || 'Kho'; this.bg.den = ''; this.bg.denTen = '';
+                    }
+                },
+                async moBanGiao(kieu) {
+                    const g = (this.may.kq && this.may.kq.dang_giu) || {};
+                    const toiGiu = g.chua_ro || g.nguoi === this.user.username;
+                    const nk = this.may.kq ? this.may.kq.nk_cuoi : null;
+                    this.bg = { mo: true, bien: (this.may.kq && this.may.kq.bien_so) || this.may.bien, kieu: '', tu: '', tuTen: '',
+                                den: '', denTen: '', ghiChu: '', nkCuoi: typeof nk === 'number' ? nk : null, dang: false, loi: '' };
+                    this.datKieuBg(kieu || (toiGiu ? 'giao' : 'nhan_bu'));
                     await this.taiNguoi();
                 },
+                // ---------- hộp "Chờ bạn xác nhận" + số đếm ----------
+                coQuyenKho() { return (this.user.quyen || []).indexOf('QUANLY_KHO_DAT') >= 0; },
+                // Số trên icon ứng dụng (khi trang đang mở). Safari tab thường không có → bỏ qua, không lỗi.
+                capNhatHuy() {
+                    const n = (this.cho && this.cho.so) || 0;
+                    try {
+                        if (n > 0 && 'setAppBadge' in navigator) { Promise.resolve(navigator.setAppBadge(n)).catch(() => {}); }
+                        else if (n === 0 && 'clearAppBadge' in navigator) { Promise.resolve(navigator.clearAppBadge()).catch(() => {}); }
+                    } catch (e) { /* trình duyệt không hỗ trợ: bỏ qua */ }
+                },
+                async taiCho(moHop) {
+                    if (!this.token || this.khongCoQuyen || this.cho.dang) { return; }
+                    this.cho.dang = true;
+                    try {
+                        const d = await this.api('/may-dat/cho-toi');
+                        this.cho.cho_toi = d.cho_toi || [];
+                        this.cho.toi_gui = d.toi_gui || [];
+                        this.cho.so = d.so || 0;
+                        this.cho.kho = d.kho || null;
+                        this.capNhatHuy();
+                        // Mở hộp khi đăng nhập / mở trang / quay lại trang; vòng hỏi 60 giây thì KHÔNG tự bật hộp
+                        if (moHop && this.cho.so > 0 && !this.hopCho.mo) { this.moHopCho(); }
+                    } catch (e) { /* tuyến phụ: lỗi mạng / máy chủ chưa cập nhật thì thôi, không báo */ }
+                    finally { this.cho.dang = false; }
+                },
+                moHopCho() {
+                    this.hopCho = { mo: true, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' };
+                },
+                // Câu mô tả một lệnh cho người đọc
+                moTaLenh(l) {
+                    const den = l.den === 'KHO' ? 'Kho' : l.den_ten;
+                    if (l.loai === 'chay_xong') { return l.tu_ten + ' đã chạy xong DAT, giao máy cho ' + den; }
+                    if (l.loai === 'tra_kho') { return l.tu_ten + ' trả máy về kho'; }
+                    if (l.loai === 'kho_giao') { return 'Kho giao máy cho ' + l.den_ten; }
+                    if (l.nguoi_tao === l.tu) { return l.tu_ten + ' giao máy cho ' + den; }
+                    return l.den_ten + ' khai đã nhận máy từ ' + l.tu_ten;
+                },
+                batDauTuChoi(l) { this.hopCho.tuChoiId = l.id; this.hopCho.lyDo = ''; this.hopCho.loi = ''; },
+                async guiTuChoi(l) {
+                    const ly = String(this.hopCho.lyDo || '').trim();
+                    if (!ly) { this.hopCho.loi = 'Hãy ghi lý do từ chối.'; return; }
+                    if ([...ly].length > TOI_DA_GHI_CHU) { this.hopCho.loi = 'Lý do dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
+                    await this.xuLyLenh(l, 'tu_choi', ly);
+                },
+                // nhan | tu_choi | huy | kho_thay — máy chủ kiểm lại vai trò; lệnh đã đổi (409) thì nạp lại cho thấy hiện trạng
+                async xuLyLenh(l, hanhDong, lyDo) {
+                    if (this.hopCho.dangId) { return; }
+                    this.hopCho.dangId = l.id;
+                    this.hopCho.loi = '';
+                    try {
+                        await this.api('/may-dat/lenh/xu-ly', {}, { body: { id: l.id, hanh_dong: hanhDong, ly_do: lyDo || '' } });
+                        this.bao({ nhan: 'Đã nhận máy', tu_choi: 'Đã từ chối', huy: 'Đã hủy lệnh', kho_thay: 'Đã xác nhận thay' }[hanhDong] || 'Đã xử lý');
+                        this.hopCho.tuChoiId = 0;
+                        this.hopCho.lyDo = '';
+                        await this.taiCho(false);
+                        if (this.may.co) { this.taiMay(); }
+                        if (this.tab === 'kho') { this.taiKho(); }
+                    } catch (e) {
+                        this.hopCho.loi = e.thongBao || 'Lỗi';
+                        this.bao(this.hopCho.loi);
+                        if (e.ma === 409 || e.ma === 404) { this.taiCho(false); if (this.may.co) { this.taiMay(); } }
+                    } finally { this.hopCho.dangId = 0; }
+                },
+                async huyLenhHoi(l) {
+                    if (!window.confirm('Hủy lệnh bàn giao máy ' + (l.bien_so || '') + '?')) { return; }
+                    await this.xuLyLenh(l, 'huy');
+                },
+
+                // ---------- trang Quản lý kho DAT ----------
+                async taiKho() {
+                    if (!this.coQuyenKho()) { return; }
+                    this.kho.dang = true;
+                    this.kho.loi = '';
+                    try {
+                        const d = await this.api('/kho-dat/may');
+                        this.kho.ds = d.may || [];
+                        this.kho.dem = d.dem || {};
+                        this.kho.daTai = true;
+                    } catch (e) { this.kho.loi = e.thongBao || 'Lỗi'; }
+                    finally { this.kho.dang = false; }
+                },
+                demKho(loc) {
+                    const d = this.kho.dem || {};
+                    if (loc === 'tat_ca') { return this.kho.ds.length; }
+                    if (loc === 'kho') { return (d.kho || 0) + (d.chua_ro || 0); }
+                    if (loc === 'dang_o') { return d.dang_o || 0; }
+                    if (loc === 'dang_chuyen') { return d.dang_chuyen || 0; }
+                    if (loc === 'qua_han') { return d.qua_han || 0; }
+                    return 0;
+                },
+                get khoLoc() {
+                    const q = this.boDau(this.kho.tim).trim();
+                    const loc = this.kho.loc;
+                    return this.kho.ds.filter(m =>
+                        (loc === 'tat_ca'
+                            || (loc === 'kho' && (m.trang_thai === 'kho' || m.trang_thai === 'chua_ro'))
+                            || (loc === 'dang_o' && m.trang_thai === 'dang_o')
+                            || (loc === 'dang_chuyen' && m.trang_thai === 'dang_chuyen')
+                            || (loc === 'qua_han' && m.qua_han))
+                        && (!q || this.chiSo([m.bien_so, m.bien_chuan, m.ten]).indexOf(q) >= 0));
+                },
+                nhanTrangThaiMay(m) {
+                    return { kho: 'Ở kho', chua_ro: 'Chưa rõ — coi như ở kho', dang_o: 'Đang ở ' + (m.ten || ''),
+                             dang_chuyen: 'Đang chuyển' }[m.trang_thai] || m.trang_thai;
+                },
+                // Bấm thẻ máy → mở tab Máy DAT với lịch sử của máy đó (dùng lại hộp Máy DAT)
+                khoMoMay(m) {
+                    this.may.bien = m.bien_so;
+                    this.doiTab('may');
+                    this.taiMay();
+                },
+                async khoChuanBi(m) { this.may.bien = m.bien_so; await this.taiMay(); return this.may.co; },
+                async khoGiaoTuKho(m) { if (await this.khoChuanBi(m)) { this.moBanGiao('kho_giao'); } },
+                async khoGhiThay(m) { if (await this.khoChuanBi(m)) { this.moBanGiao('kho_ghi_thay'); } },
+                // Kho đang cầm máy trong tay: ghi A → Kho, CÓ HIỆU LỰC NGAY
+                async khoNhanVeKho(m) {
+                    if (!window.confirm('Ghi nhận máy ' + m.bien_so + ' đã về kho (từ ' + (m.ten || '') + ')? Có hiệu lực ngay.')) { return; }
+                    try {
+                        const body = { bien_so: m.bien_so, loai: 'kho_ghi_thay', tu: m.nguoi, den: 'KHO', ghi_chu: 'Kho nhận về' };
+                        if (m.nk_cuoi !== undefined && m.nk_cuoi !== null) { body.nk_cuoi = m.nk_cuoi; }      // thẻ cũ → máy chủ báo 409
+                        await this.api('/may-dat/lenh', {}, { body: body });
+                        this.bao('Máy đã về kho');
+                        this.taiKho();
+                        this.taiCho(false);
+                    } catch (e) {
+                        this.bao(e.thongBao || 'Lỗi');
+                        if (e.ma === 409) { this.taiKho(); }      // thẻ đã cũ: nạp lại để thấy tình trạng mới
+                    }
+                },
+                async khoXacNhanThay(m) {
+                    if (!window.confirm('Kho xác nhận thay cho ' + (m.lenh.nguoi_xac_nhan === 'KHO' ? 'Kho' : m.lenh.nguoi_xac_nhan_ten) + '? Máy sẽ đổi người giữ ngay.')) { return; }
+                    await this.xuLyLenh(m.lenh, 'kho_thay');
+                },
+                async khoHuyLenh(m) { await this.huyLenhHoi(m.lenh); },
+
                 // ---------- Cài đặt: đổi mật khẩu ----------
                 moCaiDat() {
                     this.ngan = false;
@@ -807,17 +1010,26 @@
                 async guiBanGiao() {
                     if (this.bg.dang) { return; }
                     this.bg.loi = '';
-                    if (!this.bg.den) { this.bg.loi = 'Hãy chọn người nhận máy.'; return; }
+                    const k = this.bg.kieu;
+                    if (['giao', 'kho_giao', 'kho_ghi_thay'].indexOf(k) >= 0 && !this.bg.den) { this.bg.loi = 'Hãy chọn người nhận máy.'; return; }
+                    if (['nhan_bu', 'kho_ghi_thay'].indexOf(k) >= 0 && !this.bg.tu) { this.bg.loi = 'Hãy chọn người giao máy.'; return; }
                     if (this.bg.tu === this.bg.den) { this.bg.loi = 'Người giao và người nhận phải khác nhau.'; return; }
                     if ([...this.bg.ghiChu].length > TOI_DA_GHI_CHU) { this.bg.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
                     this.bg.dang = true;
                     try {
-                        await this.api('/may-dat/ban-giao', {}, { body: {
-                            bien_so: this.bg.bien, tu: this.bg.tu, den: this.bg.den, ghi_chu: this.bg.ghiChu } });
+                        const body = { bien_so: this.bg.bien, loai: k, tu: this.bg.tu, den: this.bg.den, ghi_chu: this.bg.ghiChu };
+                        if (this.bg.nkCuoi !== null) { body.nk_cuoi = this.bg.nkCuoi; }      // máy đổi tay giữa chừng → máy chủ báo 409
+                        const d = await this.api('/may-dat/lenh', {}, { body: body });
                         this.bg.mo = false;
-                        this.bao('Đã ghi bàn giao');
+                        if (d && d.cho_xac_nhan === false) { this.bao('Đã ghi bàn giao'); }
+                        else { this.bao('Đã gửi lệnh — chờ bên nhận xác nhận'); }
                         this.taiMay();
-                    } catch (e) { this.bg.loi = e.thongBao || 'Lỗi'; }
+                        this.taiCho(false);
+                        if (this.tab === 'kho') { this.taiKho(); }
+                    } catch (e) {
+                        this.bg.loi = e.thongBao || 'Lỗi';
+                        if (e.ma === 409) { this.taiMay(); }      // lệnh đang chờ / máy vừa đổi: nạp lại để thấy tình trạng mới
+                    }
                     finally { this.bg.dang = false; }
                 },
                 moAn(h) { this.an = { mo: true, id: h.id, lyDo: '', dang: false, loi: '' }; },
