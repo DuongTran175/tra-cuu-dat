@@ -56,6 +56,8 @@
                 bg: { mo: false, bien: '', tu: 'KHO', tuTen: 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' },
                 an: { mo: false, id: 0, lyDo: '', dang: false, loi: '' },
                 mangOk: navigator.onLine !== false,   // đèn Online/Offline ở đầu trang
+                // Hộp Cài đặt: đổi mật khẩu
+                cd: { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false },
 
                 // ---------- khởi động ----------
                 async khoiDong() {
@@ -220,6 +222,7 @@
                     this.xn = { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' };
                     this.bg = { mo: false, bien: '', tu: 'KHO', tuTen: 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' };
                     this.an = { mo: false, id: 0, lyDo: '', dang: false, loi: '' };
+                    this.cd = { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
                     this.ghimTim = '';
                     this.ghimTT = '';
                     this.ghimHang = '';
@@ -770,6 +773,34 @@
                     this.bg = { mo: true, bien: this.may.kq.bien_so || this.may.bien, tu: g.nguoi || 'KHO',
                                 tuTen: g.ten || 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' };
                     await this.taiNguoi();
+                },
+                // ---------- Cài đặt: đổi mật khẩu ----------
+                moCaiDat() {
+                    this.ngan = false;
+                    this.cd = { mo: true, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
+                },
+                async doiMatKhau() {
+                    if (this.cd.dang) { return; }
+                    this.cd.loi = '';
+                    this.cd.xong = false;
+                    if (!this.cd.cu) { this.cd.loi = 'Hãy nhập mật khẩu hiện tại.'; return; }
+                    if ([...this.cd.moi].length < 6) { this.cd.loi = 'Mật khẩu mới tối thiểu 6 ký tự.'; return; }
+                    if (this.cd.moi !== this.cd.lai) { this.cd.loi = 'Hai lần nhập mật khẩu mới không khớp.'; return; }
+                    if (this.cd.moi === this.cd.cu) { this.cd.loi = 'Mật khẩu mới phải khác mật khẩu hiện tại.'; return; }
+                    this.cd.dang = true;
+                    try {
+                        // Sai mật khẩu hiện tại trả 400 (không phải 401) nên KHÔNG bị đăng xuất
+                        const d = await this.api('/auth/doi-mat-khau', {}, { body: {
+                            mat_khau_cu: this.cd.cu, mat_khau_moi: this.cd.moi } });
+                        if (d && d.token) {
+                            this.token = d.token;
+                            localStorage.setItem(KHOA_TOKEN, d.token);
+                        }
+                        this.cd.cu = ''; this.cd.moi = ''; this.cd.lai = '';
+                        this.cd.xong = true;
+                        this.bao('Đã đổi mật khẩu');
+                    } catch (e) { this.cd.loi = e.thongBao || 'Lỗi'; }
+                    finally { this.cd.dang = false; }
                 },
                 async guiBanGiao() {
                     if (this.bg.dang) { return; }
