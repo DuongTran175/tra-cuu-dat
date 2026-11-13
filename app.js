@@ -10,6 +10,8 @@
         // Ảnh GV: fetch có Authorization → blob → URL cục bộ (token KHÔNG đi trong URL ảnh để khỏi lọt vào nhật ký).
         // Đệm ngoài đối tượng Alpine: '' nghĩa là GV không có ảnh (đã hỏi, 404). Đăng xuất → thu hồi hết.
         const ANH_GV = new Map();
+        // Ảnh XE: cùng cách (blob URL qua fetch có Authorization); '' = xe chưa có ảnh (404). Khóa `trung_tâm|biển chuẩn`.
+        const ANH_XE = new Map();
         const DANG_TAI_ANH = new Set();
         const TOI_DA_GHI_CHU = 300;
         const TOI_DA_ANH_NHO = 8;      // hộp xe / hộp khóa: tối đa bấy nhiêu ảnh nhỏ mỗi lần mở (mỗi ảnh ăn 1 lượt xem)
@@ -37,16 +39,9 @@
                 chon: { mo: false, loai: '', tim: '', ds: [], dich: '', nhan: {} },
                 ketQua: { results: [], total: 0, bi_cat: 0, quyen: null },
                 daTim: false, dangTai: false, loiTim: '',
-                locXe: { trung_tam: '', hang: '' },    // biển số lọc TẠI MÁY qua xeTim, không gửi API
-                xeTim: '',
-                dsXe: { xe: [], total: 0 },
-                daTaiXe: false, dangTaiXe: false, loiXe: '',
-                dsKhoa: { khoa: [], trung_tam: [], total: 0 },
-                locKhoa: { trung_tam: '', tim: '' },
-                daTaiKhoa: false, dangTaiKhoa: false, loiKhoa: '',
-                ctKhoa: { mo: false, dang: false, loi: '', khoa: {}, vehicles: [], total_hv: 0, quyen: null },
                 ctXe: { mo: false, dang: false, loi: '', bien_so: '', trung_tam: '',
-                        khoa: [], khoa_an: 0 },
+                        khoa: [], khoa_an: 0, so_hv_khac: 0 },
+                anhXe: { mo: false, dang: false, bien: '', url: '', khongCo: false, loi: '', luot: 0 },
                 gv: { mo: false, loi: '', ds: [], luot: 0 },
                 anhGv: {},              // khóa `trung_tâm|mã GV` → blob URL (bản sao phản ứng của ANH_GV)
                 ghim: [],
@@ -66,6 +61,7 @@
                 async khoiDong() {
                     window.addEventListener('online', () => { this.mangOk = true; });
                     window.addEventListener('offline', () => { this.mangOk = false; });
+                    this.theoDoiVungNhin();
                     this.token = localStorage.getItem(KHOA_TOKEN) || '';
                     this.taiPhienBan();
                     if (this.token) { await this.nhanQuyen(); }
@@ -212,10 +208,8 @@
                     this.token = '';
                     localStorage.removeItem(KHOA_TOKEN);
                     this.ketQua = { results: [], total: 0, bi_cat: 0, quyen: null };
-                    this.dsXe = { xe: [], total: 0 };
-                    this.dsKhoa = { khoa: [], trung_tam: [], total: 0 };
-                    this.ctKhoa = this.ctKhoaRong();
                     this.ctXe.mo = false;
+                    this.anhXe = { mo: false, dang: false, bien: '', url: '', khongCo: false, loi: '', luot: 0 };
                     this.gv = { mo: false, loi: '', ds: [], luot: 0 };
                     this.chon = { mo: false, loai: '', tim: '', ds: [], dich: '', nhan: {} };
                     this.ghimMuc = 'dang';
@@ -226,9 +220,6 @@
                     this.xn = { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' };
                     this.bg = { mo: false, bien: '', tu: 'KHO', tuTen: 'Kho', den: '', denTen: '', ghiChu: '', dang: false, loi: '' };
                     this.an = { mo: false, id: 0, lyDo: '', dang: false, loi: '' };
-                    this.locXe = { trung_tam: '', hang: '' };
-                    this.locKhoa = { trung_tam: '', tim: '' };
-                    this.xeTim = '';
                     this.ghimTim = '';
                     this.ghimTT = '';
                     this.ghimHang = '';
@@ -236,9 +227,6 @@
                     this.ngan = false;
                     this.hienMK = false;
                     this.daTim = false;
-                    this.daTaiXe = false;
-                    this.daTaiKhoa = false;
-                    this.loiKhoa = '';
                     this.khongCoQuyen = '';
                     if (!imLang) { this.dn.loi = ''; }
                 },
@@ -250,10 +238,6 @@
                                       nguoi_quan_ly: d.nguoi_quan_ly || [],
                                       khoa: d.khoa || [], bien_so: d.bien_so || [],
                                       giao_vien: d.giao_vien || [] };
-                        // Tab Theo xe: mặc định trung tâm ĐẦU TIÊN (không có mục "tất cả")
-                        if (!this.locXe.trung_tam && this.goiY.trung_tam.length) {
-                            this.locXe.trung_tam = this.goiY.trung_tam[0];
-                        }
                     } catch (e) { /* không có gợi ý vẫn tra cứu được */ }
                 },
 
@@ -263,18 +247,14 @@
                     this.ngan = false;
                     window.scrollTo(0, 0);
                     if (this.khongCoQuyen) { return; }
-                    if (t === 'xe' && !this.daTaiXe && !this.dangTaiXe) { this.taiXe(); }
-                    if (t === 'khoa' && !this.daTaiKhoa && !this.dangTaiKhoa) { this.taiKhoa(); }
                     if (t === 'ghim' || t === 'may') { this.taiXong(); }      // đổi tab thì nạp lại danh sách đã xong
                 },
 
                 tieuDe() {
-                    return { tim: 'Tra cứu DAT', xe: 'Theo xe', khoa: 'Khóa học', ghim: 'Ghim ghi nhớ', may: 'Máy DAT' }[this.tab] || '';
+                    return { tim: 'Tra cứu DAT', ghim: 'Ghim ghi nhớ', may: 'Máy DAT' }[this.tab] || '';
                 },
                 phuDe() {
                     return { tim: 'Tìm học viên để biết xe và giáo viên DAT',
-                             xe: 'Tra nhanh một biển số và học viên trên xe',
-                             khoa: 'Các khóa đã phân xe',
                              ghim: 'Học viên bạn đã ghim — lưu ngay trên máy này',
                              may: 'Ai đang giữ máy DAT, lịch sử bàn giao' }[this.tab] || '';
                 },
@@ -404,6 +384,12 @@
                         this.loiTim = e.thongBao || 'Lỗi';
                         this.ketQua = { results: [], total: 0, bi_cat: 0, quyen: null };
                     } finally { this.dangTai = false; }
+                    // Đóng bàn phím ảo (nó che kết quả) rồi kéo dòng đếm kết quả vào vùng nhìn
+                    try { if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); } } catch (x) { /* bỏ qua */ }
+                    setTimeout(() => {      // chờ Alpine vẽ xong kết quả
+                        const el = Array.from(document.querySelectorAll('.dem-ket-qua')).find(e => e.offsetParent !== null);
+                        this.cuonVaoNhin(el);
+                    }, 60);
                 },
 
                 xoaLoc() {
@@ -413,94 +399,22 @@
                     this.loiTim = '';
                 },
 
-                // ---------- tab Theo xe ----------
-                vaoTabXe() { this.doiTab('xe'); },
-
-                async taiXe() {
-                    this.loiXe = '';
-                    this.dangTaiXe = true;
-                    try {
-                        this.dsXe = await this.api('/phanxe/xe', this.locXe);
-                        this.daTaiXe = true;
-                    } catch (e) {
-                        this.loiXe = e.thongBao || 'Lỗi';
-                    } finally { this.dangTaiXe = false; }
-                },
-
-                // Lọc biển số TẠI MÁY (gõ liền, không dấu cách/gạch đều khớp) — không gọi API mỗi phím
-                get xeLoc() {
-                    const q = this.boDau(this.xeTim).replace(/[^a-z0-9]/g, '');
-                    if (!q) { return this.dsXe.xe || []; }
-                    return (this.dsXe.xe || []).filter(x =>
-                        this.boDau(x.BienSoXe).replace(/[^a-z0-9]/g, '').indexOf(q) >= 0);
-                },
-
                 moXeTuHV(r) { this.moXe(r.BienSoXe, r.TrungTam, 2); },
 
                 async moXe(bienSo, trungTam, soKhoa) {
                     this.ctXe = { mo: true, dang: true, loi: '', bien_so: bienSo,
-                                  trung_tam: trungTam, khoa: [], khoa_an: 0 };
+                                  trung_tam: trungTam, khoa: [], khoa_an: 0, so_hv_khac: 0 };
                     try {
-                        const d = await this.api('/phanxe/xe/chi-tiet',
+                        // /ca-xe: HV của mình đủ trường, HV người khác chỉ tên + người quản lý (CuaBan=false)
+                        const d = await this.api('/phanxe/xe/ca-xe',
                             { bien_so: bienSo, trung_tam: trungTam, so_khoa: soKhoa });
                         this.ctXe.khoa = d.khoa || [];
                         this.ctXe.khoa_an = d.khoa_an || 0;
+                        this.ctXe.so_hv_khac = d.so_hv_khac || 0;
                         this.napAnhNho(this.ctXe.khoa.map(k => [k.TrungTam || trungTam, k.MaGV]));
                     } catch (e) {
                         this.ctXe.loi = e.thongBao || 'Lỗi';
                     } finally { this.ctXe.dang = false; }
-                },
-
-                // ---------- tab Khóa ----------
-                async taiKhoa() {
-                    this.loiKhoa = '';
-                    this.dangTaiKhoa = true;
-                    try {
-                        this.dsKhoa = await this.api('/phanxe/khoa', { trung_tam: this.locKhoa.trung_tam });
-                        this.daTaiKhoa = true;
-                    } catch (e) {
-                        this.loiKhoa = e.thongBao || 'Lỗi';
-                    } finally { this.dangTaiKhoa = false; }
-                },
-
-                get khoaLoc() {
-                    const q = this.boDau(this.locKhoa.tim).trim();
-                    if (!q) { return this.dsKhoa.khoa || []; }
-                    return (this.dsKhoa.khoa || []).filter(k =>
-                        this.chiSo([k.TenKhoa, k.HangGPLX, k.MaKH]).indexOf(q) >= 0);
-                },
-
-                ctKhoaRong() {
-                    return { mo: false, dang: false, loi: '', khoa: {}, vehicles: [], total_hv: 0, quyen: null };
-                },
-
-                async moKhoa(k) {
-                    this.ctKhoa = this.ctKhoaRong();
-                    this.ctKhoa.mo = true;
-                    this.ctKhoa.dang = true;
-                    // Hiện ngay phần đầu khóa từ thẻ vừa bấm, chi tiết xe/học viên đến sau
-                    this.ctKhoa.khoa = { MaKH: k.MaKH, TrungTam: k.TrungTam, TenKhoa: k.TenKhoa,
-                                         HangGPLX: k.HangGPLX, NgayKG: k.NgayKG, NgayBG: k.NgayBG,
-                                         XePhien: k.XePhien || [], XePhienNhan: k.XePhienNhan || '' };
-                    try {
-                        // Mã khóa có thể chứa "/", khoảng trắng, dấu tiếng Việt → bắt buộc encodeURIComponent
-                        const d = await this.api('/phanxe/khoa/' + encodeURIComponent(k.MaKH),
-                            { trung_tam: k.TrungTam });
-                        this.ctKhoa.khoa = d.khoa || this.ctKhoa.khoa;
-                        this.ctKhoa.vehicles = d.vehicles || [];
-                        this.ctKhoa.total_hv = d.total_hv || 0;
-                        this.ctKhoa.quyen = d.quyen || null;
-                        this.napAnhNho(this.ctKhoa.vehicles.map(v => [this.ctKhoa.khoa.TrungTam || k.TrungTam, v.MaGV]));
-                    } catch (e) {
-                        this.ctKhoa.loi = e.thongBao || 'Lỗi';
-                    } finally { this.ctKhoa.dang = false; }
-                },
-
-                // Học viên trong chi tiết khóa không mang thông tin khóa → ghép vào để ghim như thẻ thường
-                hvKhoa(h) {
-                    const k = this.ctKhoa.khoa || {};
-                    return Object.assign({}, h, { TrungTam: k.TrungTam, MaKH: k.MaKH, TenKhoa: k.TenKhoa,
-                                                  HangGPLX: k.HangGPLX, NgayKG: k.NgayKG, NgayBG: k.NgayBG });
                 },
 
                 // ---------- giáo viên: danh sách từ /chi-tiet (tên + mã), hồ sơ + ảnh từ /ho-so và /anh ----------
@@ -589,8 +503,90 @@
                 thuHoiAnh() {
                     ANH_GV.forEach(u => { if (u) { try { URL.revokeObjectURL(u); } catch (e) { /* bỏ qua */ } } });
                     ANH_GV.clear();
+                    ANH_XE.forEach(u => { if (u) { try { URL.revokeObjectURL(u); } catch (e) { /* bỏ qua */ } } });
+                    ANH_XE.clear();
                     DANG_TAI_ANH.clear();
                     this.anhGv = {};
+                },
+
+                // ---------- ảnh XE: bấm vào biển số ở thẻ học viên / Ghim / Máy DAT / hộp xe ----------
+                // Hộp ảnh đứng CUỐI DOM nên nổi trên hộp xe đang mở. 404 → "Xe chưa có ảnh"; 429/503 không nhớ (thử lại được).
+                async moAnhXe(bienSo, trungTam) {
+                    const bien = String(bienSo || '').trim();
+                    if (!bien || !this.token) { return; }
+                    const luot = (this.anhXe.luot || 0) + 1;
+                    this.anhXe = { mo: true, dang: true, bien: bien, url: '', khongCo: false, loi: '', luot: luot };
+                    const k = (trungTam || '') + '|' + this.boDau(bien).replace(/[^a-z0-9]/g, '');
+                    if (ANH_XE.has(k)) {
+                        const u = ANH_XE.get(k);
+                        this.anhXe.url = u;
+                        this.anhXe.khongCo = !u;
+                        this.anhXe.dang = false;
+                        return;
+                    }
+                    const tokenLuc = this.token;
+                    try {
+                        const q = new URLSearchParams({ bien_so: bien });
+                        if (trungTam) { q.set('trung_tam', trungTam); }
+                        const res = await fetch(API_URL + '/phanxe/xe/anh?' + q.toString(),
+                            { headers: { 'Authorization': 'Bearer ' + this.token } });
+                        if (this.anhXe.luot !== luot) { return; }
+                        if (res.status === 401) { this.dangXuat(true); return; }
+                        if (res.status === 404) {
+                            ANH_XE.set(k, '');
+                            this.anhXe.khongCo = true;
+                        } else if (!res.ok) {
+                            this.anhXe.loi = res.status === 429 ? 'Xem ảnh quá nhiều lần, thử lại sau ít phút.'
+                                                                : 'Không tải được ảnh xe, thử lại sau.';
+                        } else {
+                            const blob = await res.blob();
+                            if (this.token !== tokenLuc || this.anhXe.luot !== luot) { return; }
+                            const url = URL.createObjectURL(blob);
+                            ANH_XE.set(k, url);
+                            this.anhXe.url = url;
+                        }
+                    } catch (e) {
+                        if (this.anhXe.luot === luot) { this.anhXe.loi = 'Không kết nối được máy chủ.'; }
+                    } finally {
+                        if (this.anhXe.luot === luot) { this.anhXe.dang = false; }
+                    }
+                },
+
+                // ---------- bàn phím ảo: bám theo VÙNG NHÌN THẬT (iOS không co 100vh khi bàn phím bật) ----------
+                theoDoiVungNhin() {
+                    const v = window.visualViewport;
+                    const goc = document.documentElement;
+                    if (v) {
+                        const dat = () => {
+                            goc.style.setProperty('--vvh', v.height + 'px');
+                            goc.style.setProperty('--vvt', v.offsetTop + 'px');
+                        };
+                        v.addEventListener('resize', dat);
+                        v.addEventListener('scroll', dat);
+                        dat();
+                    }
+                    // Ô nhập trong hộp được bấm → cuộn cho nằm trong vùng nhìn (chờ bàn phím bật xong)
+                    document.addEventListener('focusin', (e) => {
+                        const el = e.target;
+                        if (el && el.matches && el.matches('.chon-than textarea, .chon-than input')) {
+                            setTimeout(() => { try { el.scrollIntoView({ block: 'nearest' }); } catch (x) { /* bỏ qua */ } }, 300);
+                        }
+                    });
+                },
+                // Kéo phần tử vào vùng nhìn nếu nó nằm DƯỚI mép vùng nhìn thật (bàn phím ảo / thanh dưới che mất).
+                // Chỉ cuộn xuống, không cuộn ngược lên: người dùng đã tự cuộn đi chỗ khác thì thôi.
+                cuonVaoNhin(el) {
+                    if (!el) { return; }
+                    const v = window.visualViewport;
+                    const cao = v ? v.height : window.innerHeight;
+                    const r = el.getBoundingClientRect();
+                    if (r.bottom > cao - 70) { try { el.scrollIntoView({ block: 'nearest' }); } catch (x) { /* bỏ qua */ } }
+                },
+                cuonKetQuaGhim() {
+                    setTimeout(() => {      // chờ Alpine lọc xong danh sách
+                        const el = document.querySelector('#muc-ghim .hv-the');
+                        this.cuonVaoNhin(el);
+                    }, 60);
                 },
 
                 // ---------- ghim (lưu trên máy này) ----------
@@ -630,6 +626,7 @@
                 },
 
                 bamGhim(r) {
+                    if (r && r.CuaBan === false) { return; }      // HV người khác (chỉ để xem) — không ghim
                     const k = this.khoaGhim(r);
                     const i = this.ghim.findIndex(x => this.khoaGhim(x) === k);
                     if (i >= 0) {
@@ -638,9 +635,11 @@
                     } else {
                         const d = new Date();
                         const p = (n) => String(n).padStart(2, '0');
-                        this.ghim.unshift(Object.assign({}, r, {
+                        const ban = Object.assign({}, r, {
                             _ghim_luc: p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear(),
-                        }));
+                        });
+                        delete ban.CuaBan;
+                        this.ghim.unshift(ban);
                         this.bao('Đã ghim ' + (r.HoVaTen || ''));
                     }
                     this.luuGhim();
@@ -699,6 +698,7 @@
                 },
 
                 async moXacNhan(r) {
+                    if (r && r.CuaBan === false) { return; }      // HV người khác: server cũng từ chối, chặn sớm cho gọn
                     this.xn = { mo: true, r: r, kieu: 'kho', den: 'KHO', denTen: 'Về kho', ghiChu: '', dang: false, loi: '' };
                     await this.taiNguoi();
                 },

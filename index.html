@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#0781A7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0b3a4a" media="(prefers-color-scheme: dark)">
     <title>Tra cứu DAT</title>
@@ -101,12 +101,6 @@
             <nav class="sb-menu" x-show="!khongCoQuyen">
                 <button type="button" class="sb-muc" :class="tab === 'tim' ? 'active' : ''" @click="doiTab('tim')">
                     <svg class="ic" width="20" height="20"><use href="#i-search"/></svg><span>Tra cứu</span>
-                </button>
-                <button type="button" class="sb-muc" :class="tab === 'xe' ? 'active' : ''" @click="vaoTabXe()">
-                    <svg class="ic" width="20" height="20"><use href="#i-car"/></svg><span>Theo xe</span>
-                </button>
-                <button type="button" class="sb-muc" :class="tab === 'khoa' ? 'active' : ''" @click="doiTab('khoa')">
-                    <svg class="ic" width="20" height="20"><use href="#i-khoa"/></svg><span>Khóa</span>
                 </button>
                 <button type="button" class="sb-muc" :class="tab === 'may' ? 'active' : ''" @click="doiTab('may')">
                     <svg class="ic" width="20" height="20"><use href="#i-may"/></svg><span>Máy DAT</span>
@@ -245,7 +239,7 @@
                         </div>
                         <div class="hv-dong">
                             <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
-                            <b x-show="r.BienSoXe" x-text="r.BienSoXe"></b>
+                            <button type="button" class="bien-bam" x-show="r.BienSoXe" @click="moAnhXe(r.BienSoXe, r.TrungTam)" x-text="r.BienSoXe"></button>
                             <span class="chua-co" x-show="!r.BienSoXe">chưa có xe</span>
                         </div>
                         <div class="hv-dong" x-show="r.TenGV || r.MaGV">
@@ -273,95 +267,8 @@
                 </template>
             </section>
 
-            <!-- ===== Tab Theo xe ===== -->
-            <section x-show="tab === 'xe' && !khongCoQuyen">
-                <div class="card the-loc">
-                    <input id="x-bs" type="search" x-model="xeTim" autocomplete="off" placeholder="Gõ biển số — 509 hoặc 15a50902" aria-label="Biển số">
-                    <div class="luoi" style="margin-top:8px;">
-                        <select id="x-tt" x-model="locXe.trung_tam" @change="taiXe()" aria-label="Trung tâm">
-                            <template x-for="t in goiY.trung_tam" :key="t"><option :value="t" x-text="t"></option></template>
-                        </select>
-                        <select id="x-hang" x-model="locXe.hang" @change="taiXe()" aria-label="Hạng">
-                            <option value="">Mọi hạng</option>
-                            <template x-for="h in goiY.hang" :key="h"><option :value="h" x-text="h"></option></template>
-                        </select>
-                    </div>
-                    <div class="chan-loc"><span>Bấm vào xe để xem toàn bộ học viên cùng xe</span></div>
-                </div>
-                <div class="empty-state loi-trang" x-show="loiXe">
-                    <svg class="ic" width="40" height="40"><use href="#i-alert"/></svg>
-                    <div x-text="loiXe"></div>
-                </div>
-                <div class="empty-state" x-show="dangTaiXe"><div>Đang tải danh sách xe…</div></div>
-                <div class="dem-ket-qua" x-show="daTaiXe && !loiXe" x-text="xeLoc.length + '/' + dsXe.total + ' xe'"></div>
-                <div class="empty-state" x-show="daTaiXe && !loiXe && xeLoc.length === 0">
-                    <svg class="ic" width="40" height="40"><use href="#i-car"/></svg>
-                    <div>Không có xe nào phù hợp.</div>
-                </div>
-                <template x-for="x in xeLoc" :key="x.TrungTam + '|' + x.BienSoXe">
-                    <div class="card xe-the" @click="moXe(x.BienSoXe, x.TrungTam, 2)">
-                        <div class="xe-dau">
-                            <div class="xe-bien" x-text="x.BienSoXe"></div>
-                            <div>
-                                <span class="badge" x-show="x.HangGPLX" x-text="x.HangGPLX"></span>
-                                <span class="badge" x-text="x.SoHV + ' HV'"></span>
-                            </div>
-                        </div>
-                        <div class="xe-gv" x-show="x.TenGV">
-                            <span class="chu-cai" x-text="chuCaiDau(x.TenGV)"></span>
-                            <span x-text="x.TenGV"></span>
-                        </div>
-                        <div class="xe-phu" x-show="x.TenKhoa"
-                             x-text="x.TenKhoa + (x.SoKhoa > 1 ? ' · +' + (x.SoKhoa - 1) + ' khóa khác' : '')"></div>
-                        <div class="xe-phu" x-show="x.TrungTam" x-text="x.TrungTam"></div>
-                    </div>
-                </template>
-            </section>
-
-            <!-- ===== Tab Khóa ===== -->
-            <section x-show="tab === 'khoa' && !khongCoQuyen">
-                <div class="card the-loc">
-                    <input id="k-tim" type="search" x-model="locKhoa.tim" autocomplete="off" placeholder="Lọc theo tên khóa, hạng (không cần dấu)" aria-label="Tên khóa">
-                    <select id="k-tt" x-model="locKhoa.trung_tam" @change="taiKhoa()" aria-label="Trung tâm" style="margin-top:8px;">
-                        <option value="">Mọi trung tâm</option>
-                        <template x-for="t in dsKhoa.trung_tam" :key="t"><option :value="t" x-text="t"></option></template>
-                    </select>
-                    <div class="chan-loc"><span>Bấm vào khóa để xem từng xe, giáo viên và học viên</span></div>
-                </div>
-                <div class="empty-state loi-trang" x-show="loiKhoa">
-                    <svg class="ic" width="40" height="40"><use href="#i-alert"/></svg>
-                    <div x-text="loiKhoa"></div>
-                </div>
-                <div class="empty-state" x-show="dangTaiKhoa"><div>Đang tải danh sách khóa…</div></div>
-                <div class="dem-ket-qua" x-show="daTaiKhoa && !loiKhoa" x-text="khoaLoc.length + '/' + dsKhoa.total + ' khóa'"></div>
-                <div class="empty-state" x-show="daTaiKhoa && !loiKhoa && khoaLoc.length === 0">
-                    <svg class="ic" width="40" height="40"><use href="#i-khoa"/></svg>
-                    <div>Không có khóa nào phù hợp.</div>
-                </div>
-                <template x-for="k in khoaLoc" :key="k.TrungTam + '|' + k.MaKH">
-                    <div class="card khoa-the" @click="moKhoa(k)">
-                        <div class="xe-dau">
-                            <div class="khoa-ten" x-text="k.TenKhoa"></div>
-                            <span class="badge" x-show="k.HangGPLX" x-text="k.HangGPLX"></span>
-                        </div>
-                        <div class="hv-dong" x-show="k.NgayKG || k.NgayBG">
-                            <svg class="ic" width="16" height="16"><use href="#i-cal"/></svg>
-                            <span x-text="(k.NgayKG || '?') + ' – ' + (k.NgayBG || '?')"></span>
-                        </div>
-                        <div class="hv-dong">
-                            <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
-                            <span x-text="k.SoXe + ' xe' + (user.is_admin ? ' · ' + k.SoHVDaXep + ' học viên đã xếp' : '')"></span>
-                        </div>
-                        <div class="hv-dong" x-show="k.TrungTam">
-                            <svg class="ic" width="16" height="16"><use href="#i-build"/></svg>
-                            <span x-text="k.TrungTam"></span>
-                        </div>
-                    </div>
-                </template>
-            </section>
-
             <!-- ===== Tab Ghim: 2 mục "Đang chạy" / "Đã hoàn thành DAT" ===== -->
-            <section x-show="tab === 'ghim' && !khongCoQuyen">
+            <section id="muc-ghim" x-show="tab === 'ghim' && !khongCoQuyen">
                 <div class="phan-doan" role="tablist">
                     <button type="button" :class="ghimMuc === 'dang' ? 'active' : ''" @click="ghimMuc = 'dang'"
                             x-text="'Đang chạy (' + dangChay.length + ')'"></button>
@@ -369,7 +276,7 @@
                             x-text="'Đã hoàn thành DAT (' + dsXong.ds.length + ')'"></button>
                 </div>
                 <div class="card the-loc" x-show="(ghimMuc === 'dang' && ghim.length > 0) || (ghimMuc === 'xong' && dsXong.ds.length > 0)">
-                    <input id="g-tim" type="search" x-model="ghimTim" autocomplete="off" placeholder="Lọc theo biển số, tên, mã ĐK…" aria-label="Lọc phần đã ghim">
+                    <input id="g-tim" type="search" x-model="ghimTim" @input="cuonKetQuaGhim()" autocomplete="off" placeholder="Lọc theo biển số, tên, mã ĐK…" aria-label="Lọc phần đã ghim">
                     <div class="luoi" style="margin-top:8px;">
                         <select id="g-tt" x-model="ghimTT" aria-label="Trung tâm">
                             <option value="">Tất cả trung tâm</option>
@@ -428,7 +335,7 @@
                             </div>
                             <div class="hv-dong">
                                 <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
-                                <b x-show="r.BienSoXe" x-text="r.BienSoXe"></b>
+                                <button type="button" class="bien-bam" x-show="r.BienSoXe" @click="moAnhXe(r.BienSoXe, r.TrungTam)" x-text="r.BienSoXe"></button>
                                 <span class="chua-co" x-show="!r.BienSoXe">chưa có xe</span>
                             </div>
                             <div class="hv-dong" x-show="r.TenGV || r.MaGV">
@@ -481,7 +388,7 @@
                             </div>
                             <div class="hv-dong">
                                 <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
-                                <b x-show="r.BienSoXe" x-text="r.BienSoXe"></b>
+                                <button type="button" class="bien-bam" x-show="r.BienSoXe" @click="moAnhXe(r.BienSoXe, r.TrungTam)" x-text="r.BienSoXe"></button>
                                 <span class="chua-co" x-show="!r.BienSoXe">không có biển số</span>
                             </div>
                             <div class="hv-dong" x-show="r.TrungTam">
@@ -526,7 +433,7 @@
                 <div x-show="may.co && !may.dang && may.kq">
                     <div class="card may-giu">
                         <div class="dem-ket-qua" style="margin:0 0 6px;">Đang giữ máy DAT</div>
-                        <div class="xe-bien" x-text="may.kq ? may.kq.bien_so : ''"></div>
+                        <button type="button" class="xe-bien bien-bam" @click="moAnhXe(may.kq.bien_so, '')" x-text="may.kq ? may.kq.bien_so : ''"></button>
                         <div class="may-nguoi">
                             <span class="chu-cai lon" x-text="chuCaiDau(may.kq ? may.kq.dang_giu.ten : '')"></span>
                             <div style="min-width:0;">
@@ -576,12 +483,6 @@
             <button type="button" class="nav-item" :class="tab === 'tim' ? 'active' : ''" @click="doiTab('tim')">
                 <svg class="ic" width="22" height="22"><use href="#i-search"/></svg><span>Tra cứu</span>
             </button>
-            <button type="button" class="nav-item" :class="tab === 'xe' ? 'active' : ''" @click="vaoTabXe()">
-                <svg class="ic" width="22" height="22"><use href="#i-car"/></svg><span>Theo xe</span>
-            </button>
-            <button type="button" class="nav-item" :class="tab === 'khoa' ? 'active' : ''" @click="doiTab('khoa')">
-                <svg class="ic" width="22" height="22"><use href="#i-khoa"/></svg><span>Khóa</span>
-            </button>
             <button type="button" class="nav-item" :class="tab === 'may' ? 'active' : ''" @click="doiTab('may')">
                 <svg class="ic" width="22" height="22"><use href="#i-may"/></svg><span>Máy DAT</span>
             </button>
@@ -612,7 +513,7 @@
                         <span :class="xn.den ? 'da-chon' : 'hint'" x-text="xn.den ? xn.denTen : 'Chọn người nhận máy'"></span>
                     </button>
                     <label for="xn-ghi-chu">Ghi chú (không bắt buộc)</label>
-                    <textarea id="xn-ghi-chu" x-model="xn.ghiChu" maxlength="300" rows="3" placeholder="Ví dụ: máy còn pin 80%"></textarea>
+                    <textarea id="xn-ghi-chu" x-model="xn.ghiChu" maxlength="300" rows="3" placeholder="VD: máy hỏng, đang gửi đi sửa…"></textarea>
                     <div class="goi-y-dong" x-text="[...xn.ghiChu].length + '/300 ký tự'"></div>
                     <div class="loi" x-show="xn.loi" x-text="xn.loi"></div>
                     <button type="button" class="nut rong" style="margin-top:12px;" :disabled="xn.dang" @click="guiXacNhan()">
@@ -649,7 +550,7 @@
                         <button type="button" class="nut phu nho" @click="bg.den = 'KHO'; bg.denTen = 'Về kho'">Kho</button>
                     </div>
                     <label for="bg-ghi-chu">Ghi chú (không bắt buộc)</label>
-                    <textarea id="bg-ghi-chu" x-model="bg.ghiChu" maxlength="300" rows="3" placeholder="Ví dụ: giao lại sau buổi sáng"></textarea>
+                    <textarea id="bg-ghi-chu" x-model="bg.ghiChu" maxlength="300" rows="3" placeholder="VD: máy hỏng, đang gửi đi sửa…"></textarea>
                     <div class="goi-y-dong" x-text="[...bg.ghiChu].length + '/300 ký tự'"></div>
                     <div class="loi" x-show="bg.loi" x-text="bg.loi"></div>
                     <button type="button" class="nut rong" style="margin-top:12px;" :disabled="bg.dang" @click="guiBanGiao()">
@@ -683,11 +584,13 @@
         <!-- ===== Bảng chọn dùng chung (Khóa / Biển số / Giáo viên / Người quản lý / Người dùng) ===== -->
         <div class="chon-sheet" x-show="chon.mo" x-cloak @click.self="chon.mo = false" @keydown.escape.window="chon.mo = false">
             <div class="chon-than">
-                <div class="sheet-dau">
-                    <div class="sheet-tieu-de" x-text="tenChon()"></div>
-                    <button type="button" class="nut phu nho" @click="chon.mo = false">Đóng</button>
+                <div class="chon-dinh">
+                    <div class="sheet-dau">
+                        <div class="sheet-tieu-de" x-text="tenChon()"></div>
+                        <button type="button" class="nut phu nho" @click="chon.mo = false">Đóng</button>
+                    </div>
+                    <input type="search" x-model="chon.tim" autocomplete="off" placeholder="Gõ để lọc (không cần dấu)">
                 </div>
-                <input type="search" x-model="chon.tim" autocomplete="off" placeholder="Gõ để lọc (không cần dấu)">
                 <button type="button" class="chon-dong" x-show="chonDungRieng" @click="chonXong(chonDungRieng)"
                         x-text="'+ Dùng “' + chonDungRieng + '”'"></button>
                 <button type="button" class="chon-dong" x-show="chon.loai !== 'nguoi_dung'" @click="chonXong('')">Tất cả (bỏ chọn)</button>
@@ -698,78 +601,18 @@
             </div>
         </div>
 
-        <!-- ===== Hộp chi tiết khóa (giữa màn) ===== -->
-        <div class="giua-boc" x-show="ctKhoa.mo" x-cloak @click.self="ctKhoa.mo = false" @keydown.escape.window="ctKhoa.mo = false">
-            <div class="chon-sheet giua">
-                <div class="chon-than">
-                    <div class="sheet-dau">
-                        <div class="sheet-tieu-de" x-text="ctKhoa.khoa.TenKhoa"></div>
-                        <button type="button" class="nut phu nho" @click="ctKhoa.mo = false">Đóng</button>
-                    </div>
-                    <div class="khoa-chi-tiet-dau">
-                        <div class="hv-dong">
-                            <svg class="ic" width="16" height="16"><use href="#i-cal"/></svg>
-                            <span x-text="(ctKhoa.khoa.NgayKG || '?') + ' – ' + (ctKhoa.khoa.NgayBG || '?') + (ctKhoa.khoa.HangGPLX ? ' · hạng ' + ctKhoa.khoa.HangGPLX : '')"></span>
-                        </div>
-                        <div class="hv-dong" x-show="ctKhoa.khoa.TrungTam">
-                            <svg class="ic" width="16" height="16"><use href="#i-build"/></svg>
-                            <span x-text="ctKhoa.khoa.TrungTam"></span>
-                        </div>
-                        <details class="phien-box" x-show="(ctKhoa.khoa.XePhien || []).length > 0" :open="(ctKhoa.khoa.XePhien || []).length <= 4">
-                            <summary x-text="'Xe chạy phiên' + (ctKhoa.khoa.XePhienNhan ? ' — ' + ctKhoa.khoa.XePhienNhan : '') + ' (' + (ctKhoa.khoa.XePhien || []).length + ')'"></summary>
-                            <div class="phien-ds"><template x-for="b in dsPhien(ctKhoa.khoa)" :key="b"><span x-text="b"></span></template></div>
-                        </details>
-                    </div>
-                    <div class="empty-state loi-trang" x-show="ctKhoa.loi"><div x-text="ctKhoa.loi"></div></div>
-                    <div class="empty-state" x-show="ctKhoa.dang"><div>Đang tải…</div></div>
-                    <div class="canh-bao-quyen" x-show="ctKhoa.quyen && ctKhoa.quyen.da_an > 0"
-                         x-text="'Đã ẩn ' + (ctKhoa.quyen ? ctKhoa.quyen.da_an : 0) + ' học viên không do bạn quản lý.'"></div>
-                    <div class="dem-ket-qua" x-show="!ctKhoa.dang && !ctKhoa.loi"
-                         x-text="ctKhoa.vehicles.length + ' xe · ' + ctKhoa.total_hv + ' học viên'"></div>
-                    <template x-for="v in ctKhoa.vehicles" :key="v.BienSoXe">
-                        <div class="xe-trong-khoa">
-                            <div class="xe-dau">
-                                <div class="xe-bien" x-text="v.BienSoXe"></div>
-                                <span class="badge" x-text="v.SoHV + ' HV'"></span>
-                            </div>
-                            <div class="xe-gv" x-show="v.TenGV || v.MaGV">
-                                <img class="anh-nho" x-show="anhNho(ctKhoa.khoa.TrungTam, v.MaGV)" :src="anhNho(ctKhoa.khoa.TrungTam, v.MaGV)" alt="" width="32" height="32">
-                                <span class="chu-cai" x-show="!anhNho(ctKhoa.khoa.TrungTam, v.MaGV)" x-text="chuCaiDau(v.TenGV || v.MaGV)"></span>
-                                <button type="button" class="hv-gv-bam" @click="moGV(v, ctKhoa.khoa.TrungTam)" x-text="v.TenGV || v.MaGV"></button>
-                            </div>
-                            <template x-for="h in (v.students || [])" :key="h.MaDK">
-                                <div class="hv-gon">
-                                    <div>
-                                        <b x-text="h.HoVaTen"></b>
-                                        <span class="phu nho" x-text="' · ' + h.MaDK"></span>
-                                        <div class="phu nho" x-show="h.SoCMT || h.NgaySinh"
-                                             x-text="(h.SoCMT ? 'CCCD ' + h.SoCMT : '') + (h.SoCMT && h.NgaySinh ? ' · ' : '') + (h.NgaySinh ? 'Sinh ' + h.NgaySinh : '')"></div>
-                                        <div class="nho hv-dong tim" x-show="h.NguoiQuanLy" x-text="'Quản lý: ' + h.NguoiQuanLy"></div>
-                                    </div>
-                                    <button type="button" class="pin-btn nho" :class="daGhim(hvKhoa(h)) ? 'on' : ''"
-                                            :title="daGhim(hvKhoa(h)) ? 'Bỏ ghim' : 'Ghim'"
-                                            :aria-label="(daGhim(hvKhoa(h)) ? 'Bỏ ghim ' : 'Ghim ') + h.HoVaTen"
-                                            @click="bamGhim(hvKhoa(h))">
-                                        <svg class="ic" width="18" height="18"><use href="#i-pin"/></svg>
-                                    </button>
-                                </div>
-                            </template>
-                        </div>
-                    </template>
-                </div>
-            </div>
-        </div>
-
         <!-- ===== Hộp chi tiết xe (giữa màn) ===== -->
-        <div class="giua-boc" x-show="ctXe.mo" x-cloak @click.self="ctXe.mo = false" @keydown.escape.window="ctXe.mo = false">
+        <div class="giua-boc" x-show="ctXe.mo" x-cloak @click.self="ctXe.mo = false" @keydown.escape.window="if (!anhXe.mo) ctXe.mo = false">
             <div class="chon-sheet giua">
                 <div class="chon-than">
                     <div class="sheet-dau">
-                        <div class="sheet-tieu-de" x-text="'Xe ' + ctXe.bien_so"></div>
+                        <div class="sheet-tieu-de">Xe <button type="button" class="bien-bam" @click="moAnhXe(ctXe.bien_so, ctXe.trung_tam)" x-text="ctXe.bien_so"></button></div>
                         <button type="button" class="nut phu nho" @click="ctXe.mo = false">Đóng</button>
                     </div>
                     <div class="phu nho" x-show="!ctXe.dang && !ctXe.loi"
                          x-text="'Đang xem ' + ctXe.khoa.length + ' khóa gần nhất' + (ctXe.khoa_an > 0 ? ' · còn ' + ctXe.khoa_an + ' khóa cũ' : '')"></div>
+                    <div class="phu nho" x-show="!ctXe.dang && !ctXe.loi && ctXe.so_hv_khac > 0"
+                         x-text="'Gồm ' + ctXe.so_hv_khac + ' học viên người khác cùng xe — chỉ hiện tên và người quản lý hồ sơ.'"></div>
                     <div class="loi" x-show="ctXe.loi" x-text="ctXe.loi"></div>
                     <div class="empty-state" x-show="ctXe.dang"><div>Đang tải…</div></div>
                     <template x-for="k in ctXe.khoa" :key="k.TrungTam + '|' + k.MaKH">
@@ -790,19 +633,23 @@
                             </div>
                             <div class="phu nho" x-text="k.SoHV + ' học viên'"></div>
                             <template x-for="h in k.hoc_vien" :key="h.MaDK">
-                                <div class="hv-gon">
+                                <div class="hv-gon" :class="h.CuaBan === false ? 'hv-nguoi-khac' : ''">
                                     <div>
                                         <b x-text="h.HoVaTen"></b>
                                         <span class="phu nho" x-text="' · ' + h.MaDK"></span>
-                                        <div class="phu nho" x-show="h.SoCMT || h.NgaySinh"
+                                        <span class="badge" x-show="h.CuaBan === false">HV người khác</span>
+                                        <div class="phu nho" x-show="h.CuaBan !== false && (h.SoCMT || h.NgaySinh)"
                                              x-text="(h.SoCMT ? 'CCCD ' + h.SoCMT : '') + (h.SoCMT && h.NgaySinh ? ' · ' : '') + (h.NgaySinh ? 'Sinh ' + h.NgaySinh : '')"></div>
+                                        <div class="nho hv-dong tim" x-show="h.CuaBan === false" x-text="'Quản lý: ' + h.NguoiQuanLy"></div>
                                     </div>
-                                    <button type="button" class="pin-btn nho" :class="daGhim(h) ? 'on' : ''"
-                                            :title="daGhim(h) ? 'Bỏ ghim' : 'Ghim'"
-                                            :aria-label="(daGhim(h) ? 'Bỏ ghim ' : 'Ghim ') + h.HoVaTen"
-                                            @click="bamGhim(h)">
-                                        <svg class="ic" width="18" height="18"><use href="#i-pin"/></svg>
-                                    </button>
+                                    <template x-if="h.CuaBan !== false">
+                                        <button type="button" class="pin-btn nho" :class="daGhim(h) ? 'on' : ''"
+                                                :title="daGhim(h) ? 'Bỏ ghim' : 'Ghim'"
+                                                :aria-label="(daGhim(h) ? 'Bỏ ghim ' : 'Ghim ') + h.HoVaTen"
+                                                @click="bamGhim(h)">
+                                            <svg class="ic" width="18" height="18"><use href="#i-pin"/></svg>
+                                        </button>
+                                    </template>
                                 </div>
                             </template>
                         </div>
@@ -851,6 +698,22 @@
                             </div>
                         </div>
                     </template>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Hộp ảnh xe (giữa màn) — ĐỨNG CUỐI DOM: nổi trên hộp xe / hộp giáo viên ===== -->
+        <div class="giua-boc" x-show="anhXe.mo" x-cloak @click.self="anhXe.mo = false" @keydown.escape.window="anhXe.mo = false">
+            <div class="chon-sheet giua">
+                <div class="chon-than">
+                    <div class="sheet-dau">
+                        <div class="sheet-tieu-de" x-text="'Xe ' + anhXe.bien"></div>
+                        <button type="button" class="nut phu nho" @click="anhXe.mo = false">Đóng</button>
+                    </div>
+                    <div class="empty-state" x-show="anhXe.dang"><div>Đang tải ảnh…</div></div>
+                    <img class="anh-xe" x-show="anhXe.url" :src="anhXe.url ? anhXe.url : null" alt="Ảnh xe">
+                    <div class="empty-state" x-show="anhXe.khongCo && !anhXe.dang"><div>Xe chưa có ảnh</div></div>
+                    <div class="loi" x-show="anhXe.loi" x-text="anhXe.loi"></div>
                 </div>
             </div>
         </div>
