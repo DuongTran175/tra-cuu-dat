@@ -363,3 +363,9 @@ svg { flex-shrink: 0; }
 .khoi-tb .tb-ok { color: var(--accent-text); font-weight: 600; }
 .khoi-tb .tb-chan { color: var(--warning); background: var(--warning-bg); border-radius: 10px; padding: 10px 12px; }
 .khoi-tb .tb-loi { color: var(--danger); margin: 8px 0; }
+
+/* ---------- Chọn nhanh tình trạng máy DAT (14/11/2026) ---------- */
+.chip-tt { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.chip-tt button { flex: 0 1 auto; min-width: 0; min-height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 22px;
+                  background: var(--card-bg); color: var(--text-sub); font-weight: 700; font-size: 14px; max-width: 100%; }
+.chip-tt button.active { background: var(--accent-light); color: var(--accent-text); border-color: var(--accent); }

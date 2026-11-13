@@ -584,17 +584,29 @@
                     <input id="xn-bien" type="text" readonly :value="xn.r.BienSoXe || ''" placeholder="Học viên chưa có biển số">
                     <label>Máy DAT chuyển đi đâu?</label>
                     <div class="phan-doan">
-                        <button type="button" :class="xn.kieu === 'kho' ? 'active' : ''" @click="chonKieuXn('kho')">Về kho</button>
                         <button type="button" :class="xn.kieu === 'nguoi' ? 'active' : ''" @click="chonKieuXn('nguoi')">Giao cho…</button>
+                        <button type="button" :class="xn.kieu === 'kho' ? 'active' : ''" @click="chonKieuXn('kho')">Về kho</button>
                         <button type="button" :class="xn.kieu === 'giu' ? 'active' : ''" @click="chonKieuXn('giu')">Tôi vẫn giữ máy</button>
                     </div>
                     <div class="phu nho" style="margin:-4px 0 8px;" x-text="xn.kieu === 'giu' ? 'Máy vẫn ở chỗ bạn, không tạo lệnh bàn giao (dùng khi còn học viên khác chạy cùng xe).' : xn.kieu === 'nguoi' ? 'Giao cho ' + (xn.denTen || 'người nhận') + ' (người đó phải xác nhận). Máy chỉ đổi người giữ khi họ bấm Nhận.' : 'Về kho (kho phải xác nhận). Máy chỉ về kho khi kho bấm Nhận.'"></div>
                     <button type="button" class="o-chon" x-show="xn.kieu === 'nguoi'" @click="moChon('nguoi_dung', 'xn.den')" aria-label="Chọn người nhận máy">
                         <span :class="xn.den ? 'da-chon' : 'hint'" x-text="xn.den ? xn.denTen : 'Chọn người nhận máy'"></span>
                     </button>
-                    <label for="xn-ghi-chu">Ghi chú (không bắt buộc)</label>
-                    <textarea id="xn-ghi-chu" x-model="xn.ghiChu" maxlength="300" rows="3" placeholder="VD: máy hỏng, đang gửi đi sửa…"></textarea>
-                    <div class="goi-y-dong" x-text="[...xn.ghiChu].length + '/300 ký tự'"></div>
+                    <label>Tình trạng máy</label>
+                    <div class="chip-tt">
+                        <template x-for="t in tinhTrangMay" :key="t.ma">
+                            <button type="button" :class="xn.tinhTrang === t.ma ? 'active' : ''" @click="chonTinhTrang('xn', t.ma)" x-text="t.ten"></button>
+                        </template>
+                    </div>
+                    <div class="chip-tt" x-show="xn.tinhTrang === 'hong' || xn.tinhTrang === 'loi'">
+                        <template x-for="b in boPhanMay" :key="b">
+                            <button type="button" :class="xn.boPhan.indexOf(b) >= 0 ? 'active' : ''" @click="chonBoPhan('xn', b)" x-text="b"></button>
+                        </template>
+                    </div>
+                    <label for="xn-ghi-chu">Ghi chú thêm</label>
+                    <textarea id="xn-ghi-chu" x-model="xn.ghiChu" maxlength="300" rows="3" placeholder="Ghi thêm (không bắt buộc)…"></textarea>
+                    <div class="goi-y-dong" x-show="xn.tinhTrang" x-text="'Sẽ ghi: ' + ghiChuGhep('xn')"></div>
+                    <div class="goi-y-dong" x-text="[...ghiChuGhep('xn')].length + '/300 ký tự'"></div>
                     <div class="loi" x-show="xn.loi" x-text="xn.loi"></div>
                     <button type="button" class="nut rong" style="margin-top:12px;" :disabled="xn.dang" @click="guiXacNhan()">
                         <span class="xoay" x-show="xn.dang"></span>
@@ -637,9 +649,21 @@
                         <button type="button" class="nut phu nho" x-show="bg.kieu === 'kho_ghi_thay'" @click="bg.den = 'KHO'; bg.denTen = 'Kho'">Kho</button>
                     </div>
                     <div class="o-co-dinh" x-show="bg.kieu === 'tra_kho' || bg.kieu === 'nhan_bu'" x-text="bg.kieu === 'tra_kho' ? 'Kho' : (bg.denTen || 'Bạn')"></div>
-                    <label for="bg-ghi-chu">Ghi chú (không bắt buộc)</label>
-                    <textarea id="bg-ghi-chu" x-model="bg.ghiChu" maxlength="300" rows="3" placeholder="VD: máy hỏng, đang gửi đi sửa…"></textarea>
-                    <div class="goi-y-dong" x-text="[...bg.ghiChu].length + '/300 ký tự'"></div>
+                    <label>Tình trạng máy</label>
+                    <div class="chip-tt">
+                        <template x-for="t in tinhTrangMay" :key="t.ma">
+                            <button type="button" :class="bg.tinhTrang === t.ma ? 'active' : ''" @click="chonTinhTrang('bg', t.ma)" x-text="t.ten"></button>
+                        </template>
+                    </div>
+                    <div class="chip-tt" x-show="bg.tinhTrang === 'hong' || bg.tinhTrang === 'loi'">
+                        <template x-for="b in boPhanMay" :key="b">
+                            <button type="button" :class="bg.boPhan.indexOf(b) >= 0 ? 'active' : ''" @click="chonBoPhan('bg', b)" x-text="b"></button>
+                        </template>
+                    </div>
+                    <label for="bg-ghi-chu">Ghi chú thêm</label>
+                    <textarea id="bg-ghi-chu" x-model="bg.ghiChu" maxlength="300" rows="3" placeholder="Ghi thêm (không bắt buộc)…"></textarea>
+                    <div class="goi-y-dong" x-show="bg.tinhTrang" x-text="'Sẽ ghi: ' + ghiChuGhep('bg')"></div>
+                    <div class="goi-y-dong" x-text="[...ghiChuGhep('bg')].length + '/300 ký tự'"></div>
                     <div class="loi" x-show="bg.loi" x-text="bg.loi"></div>
                     <button type="button" class="nut rong" style="margin-top:12px;" :disabled="bg.dang" @click="guiBanGiao()">
                         <span class="xoay" x-show="bg.dang"></span>

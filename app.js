@@ -14,6 +14,21 @@
         const ANH_XE = new Map();
         const DANG_TAI_ANH = new Set();
         const TOI_DA_GHI_CHU = 300;
+        // Chọn nhanh tình trạng máy DAT cho ô ghi chú (máy chủ vẫn nhận ghi_chu là chuỗi tự do)
+        const TINH_TRANG_MAY = [{ ma: 'binh_thuong', ten: 'Máy bình thường' }, { ma: 'hong', ten: 'Máy hỏng' }, { ma: 'loi', ten: 'Máy lỗi' }];
+        const BO_PHAN_MAY = ['Định vị', 'Nguồn/pin', 'Màn hình', 'Camera', 'Thẻ nhớ/SIM', 'Khác'];
+        // Ghép tình trạng + bộ phận + chữ tự do thành MỘT chuỗi ghi chú (hàm thuần, dùng chung 2 hộp)
+        function ghepGhiChu(tinhTrang, boPhan, chu) {
+            const tt = TINH_TRANG_MAY.find(function (t) { return t.ma === tinhTrang; });
+            const phan = String(chu || '').trim();
+            if (!tt) { return phan; }
+            let kq = tt.ten;
+            if (tt.ma !== 'binh_thuong' && boPhan && boPhan.length) {
+                kq += ': ' + BO_PHAN_MAY.filter(function (b) { return boPhan.indexOf(b) >= 0; })
+                    .map(function (b) { return b.toLowerCase(); }).join(', ');
+            }
+            return phan ? kq + ' — ' + phan : kq;
+        }
         const TOI_DA_ANH_NHO = 8;      // hộp xe / hộp khóa: tối đa bấy nhiêu ảnh nhỏ mỗi lần mở (mỗi ảnh ăn 1 lượt xem)
         // Thông báo đẩy nền (GĐ2): đối tượng của trình duyệt (ServiceWorkerRegistration…) KHÔNG đặt vào state Alpine
         // (Proxy làm hỏng lời gọi) → giữ ở biến ngoài. Cờ `tcdat_tb_<tên đăng nhập>` = người này đã bật thông báo ở máy này.
@@ -74,8 +89,8 @@
                 // Tab Máy DAT
                 may: { bien: '', dang: false, loi: '', co: false, kq: null },
                 dsNguoi: [], daTaiNguoi: false,
-                xn: { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' },
-                bg: { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', ghiChu: '', nkCuoi: null, dang: false, loi: '' },
+                xn: { mo: false, r: {}, kieu: 'nguoi', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', dang: false, loi: '' },
+                bg: { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', nkCuoi: null, dang: false, loi: '' },
                 // Lệnh bàn giao chờ xác nhận (GĐ1 kho máy DAT): hộp "Chờ bạn xác nhận", chấm số, số trên icon
                 cho: { cho_toi: [], toi_gui: [], so: 0, kho: null, dang: false },
                 hopCho: { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' },
@@ -271,8 +286,8 @@
                     this.may = { bien: '', dang: false, loi: '', co: false, kq: null };
                     this.dsNguoi = [];
                     this.daTaiNguoi = false;
-                    this.xn = { mo: false, r: {}, kieu: 'kho', den: 'KHO', denTen: '', ghiChu: '', dang: false, loi: '' };
-                    this.bg = { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', ghiChu: '', nkCuoi: null, dang: false, loi: '' };
+                    this.xn = { mo: false, r: {}, kieu: 'nguoi', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', dang: false, loi: '' };
+                    this.bg = { mo: false, bien: '', kieu: 'giao', tu: '', tuTen: '', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', nkCuoi: null, dang: false, loi: '' };
                     this.cho = { cho_toi: [], toi_gui: [], so: 0, kho: null, dang: false };
                     this.hopCho = { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' };
                     this.kho = { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false };
@@ -764,19 +779,9 @@
 
                 async moXacNhan(r) {
                     if (r && r.CuaBan === false) { return; }      // HV người khác: server cũng từ chối, chặn sớm cho gọn
-                    this.xn = { mo: true, r: r, kieu: 'kho', den: 'KHO', denTen: 'Về kho', ghiChu: '', dang: false, loi: '' };
-                    // Máy đang có lệnh chờ (của mình hoặc đang chuyển): chọn sẵn "Tôi vẫn giữ máy" — một xe nhiều học viên
-                    const chuan = String((r && r.BienSoXe) || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-                    if (chuan && (this.cho.toi_gui || []).some(l => l.trang_thai === 'cho' && l.bien_chuan === chuan)) {
-                        this.chonKieuXn('giu');
-                    }
+                    this.xn = { mo: true, r: r, kieu: 'nguoi', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', dang: false, loi: '' };
+                    // Mặc định LUÔN là "Giao cho…" (Về kho / Tôi vẫn giữ máy là lựa chọn sau)
                     await this.taiNguoi();
-                    if (chuan && this.xn.mo && this.xn.r === r && this.xn.kieu !== 'giu') {
-                        try {
-                            const d = await this.api('/may-dat/xe', { bien_so: r.BienSoXe });
-                            if (d && d.dang_chuyen && this.xn.mo && this.xn.r === r && this.xn.kieu === 'kho' && !this.xn.ghiChu) { this.chonKieuXn('giu'); }
-                        } catch (e) { /* không đọc được tình trạng máy: giữ lựa chọn mặc định */ }
-                    }
                 },
                 async taiNguoi() {
                     // Mỗi lần mở hộp tải lại (tài khoản mới hiện ngay); danh sách cũ vẫn dùng được trong lúc chờ
@@ -792,16 +797,29 @@
                     else if (k === 'giu') { this.xn.den = this.user.username; this.xn.denTen = 'Tôi'; }      // vẫn giữ máy: không tạo lệnh
                     else { this.xn.den = ''; this.xn.denTen = ''; }
                 },
+                // Chọn nhanh tình trạng máy: bấm lại nút đang chọn = bỏ chọn; về Bình thường/bỏ chọn thì xóa bộ phận
+                tinhTrangMay: TINH_TRANG_MAY,
+                boPhanMay: BO_PHAN_MAY,
+                chonTinhTrang(dt, ma) {
+                    const o = this[dt];
+                    o.tinhTrang = o.tinhTrang === ma ? '' : ma;
+                    if (o.tinhTrang !== 'hong' && o.tinhTrang !== 'loi') { o.boPhan = []; }
+                },
+                chonBoPhan(dt, b) {
+                    const o = this[dt];
+                    o.boPhan = o.boPhan.indexOf(b) >= 0 ? o.boPhan.filter(function (x) { return x !== b; }) : o.boPhan.concat([b]);
+                },
+                ghiChuGhep(dt) { const o = this[dt]; return ghepGhiChu(o.tinhTrang, o.boPhan, o.ghiChu); },
                 async guiXacNhan() {
                     if (this.xn.dang) { return; }
                     this.xn.loi = '';
                     if (this.xn.kieu === 'nguoi' && !this.xn.den) { this.xn.loi = 'Hãy chọn người nhận máy.'; return; }
-                    if ([...this.xn.ghiChu].length > TOI_DA_GHI_CHU) { this.xn.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
+                    if ([...this.ghiChuGhep('xn')].length > TOI_DA_GHI_CHU) { this.xn.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
                     this.xn.dang = true;
                     try {
                         const d = await this.api('/dat-xong', {}, { body: {
                             trung_tam: this.xn.r.TrungTam, ma_kh: this.xn.r.MaKH, ma_dk: this.xn.r.MaDK,
-                            den: this.xn.den, ghi_chu: this.xn.ghiChu } });
+                            den: this.xn.den, ghi_chu: this.ghiChuGhep('xn') } });
                         this.xn.mo = false;
                         // Giao cho người khác / về kho: máy CHƯA đổi tay cho tới khi bên kia bấm Nhận
                         const coLenh = !!(d && d.ket_qua && d.ket_qua.lenh_id);
@@ -881,7 +899,7 @@
                     const toiGiu = g.chua_ro || g.nguoi === this.user.username;
                     const nk = this.may.kq ? this.may.kq.nk_cuoi : null;
                     this.bg = { mo: true, bien: (this.may.kq && this.may.kq.bien_so) || this.may.bien, kieu: '', tu: '', tuTen: '',
-                                den: '', denTen: '', ghiChu: '', nkCuoi: typeof nk === 'number' ? nk : null, dang: false, loi: '' };
+                                den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', nkCuoi: typeof nk === 'number' ? nk : null, dang: false, loi: '' };
                     this.datKieuBg(kieu || (toiGiu ? 'giao' : 'nhan_bu'));
                     await this.taiNguoi();
                 },
@@ -1196,10 +1214,10 @@
                     if (['giao', 'kho_giao', 'kho_ghi_thay'].indexOf(k) >= 0 && !this.bg.den) { this.bg.loi = 'Hãy chọn người nhận máy.'; return; }
                     if (['nhan_bu', 'kho_ghi_thay'].indexOf(k) >= 0 && !this.bg.tu) { this.bg.loi = 'Hãy chọn người giao máy.'; return; }
                     if (this.bg.tu === this.bg.den) { this.bg.loi = 'Người giao và người nhận phải khác nhau.'; return; }
-                    if ([...this.bg.ghiChu].length > TOI_DA_GHI_CHU) { this.bg.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
+                    if ([...this.ghiChuGhep('bg')].length > TOI_DA_GHI_CHU) { this.bg.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
                     this.bg.dang = true;
                     try {
-                        const body = { bien_so: this.bg.bien, loai: k, tu: this.bg.tu, den: this.bg.den, ghi_chu: this.bg.ghiChu };
+                        const body = { bien_so: this.bg.bien, loai: k, tu: this.bg.tu, den: this.bg.den, ghi_chu: this.ghiChuGhep('bg') };
                         if (this.bg.nkCuoi !== null) { body.nk_cuoi = this.bg.nkCuoi; }      // máy đổi tay giữa chừng → máy chủ báo 409
                         const d = await this.api('/may-dat/lenh', {}, { body: body });
                         this.bg.mo = false;
