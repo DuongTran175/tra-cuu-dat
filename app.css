@@ -355,3 +355,11 @@ svg { flex-shrink: 0; }
 .kho-the { border-left: 4px solid var(--accent); }
 .kho-the.qua-han { border: 1px solid var(--danger); border-left: 4px solid var(--danger); }
 .kho-lenh { margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--bg); word-break: break-word; }
+
+/* Khối "Thông báo" trong hộp Cài đặt (GĐ2): trạng thái + nút Bật/Tắt */
+.khoi-tb { margin: 0 0 14px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.khoi-tb .tb-ghi { color: var(--text-sub); font-size: 13px; line-height: 1.45; margin: 4px 0 10px; }
+.khoi-tb .tb-ghi b { color: var(--text-main); }
+.khoi-tb .tb-ok { color: var(--accent-text); font-weight: 600; }
+.khoi-tb .tb-chan { color: var(--warning); background: var(--warning-bg); border-radius: 10px; padding: 10px 12px; }
+.khoi-tb .tb-loi { color: var(--danger); margin: 8px 0; }

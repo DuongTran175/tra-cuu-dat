@@ -15,6 +15,28 @@
         const DANG_TAI_ANH = new Set();
         const TOI_DA_GHI_CHU = 300;
         const TOI_DA_ANH_NHO = 8;      // hộp xe / hộp khóa: tối đa bấy nhiêu ảnh nhỏ mỗi lần mở (mỗi ảnh ăn 1 lượt xem)
+        // Thông báo đẩy nền (GĐ2): đối tượng của trình duyệt (ServiceWorkerRegistration…) KHÔNG đặt vào state Alpine
+        // (Proxy làm hỏng lời gọi) → giữ ở biến ngoài. Cờ `tcdat_tb_<tên đăng nhập>` = người này đã bật thông báo ở máy này.
+        const KHOA_TB = 'tcdat_tb_';
+        const CHO_SW_MS = 5000;
+        let TB_REG = null;      // ServiceWorkerRegistration đã sẵn sàng
+        let TB_KHOA = '';       // khóa công khai VAPID (base64url) lấy từ /push/khoa
+
+        function b64uSangBytes(s) {
+            const t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+            const raw = atob(t + '='.repeat((4 - (t.length % 4)) % 4));
+            const o = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) { o[i] = raw.charCodeAt(i); }
+            return o;
+        }
+        // Chờ Service Worker sẵn sàng, tối đa CHO_SW_MS (chưa đăng ký được thì ready không bao giờ xong)
+        function swSanSang() {
+            if (!('serviceWorker' in navigator)) { return Promise.resolve(null); }
+            return Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise((xong) => setTimeout(() => xong(null), CHO_SW_MS)),
+            ]).catch(() => null);
+        }
 
         function app() {
             return {
@@ -61,6 +83,8 @@
                 kho: { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false },
                 an: { mo: false, id: 0, lyDo: '', dang: false, loi: '' },
                 mangOk: navigator.onLine !== false,   // đèn Online/Offline ở đầu trang
+                // Cài đặt → khối "Thông báo": dang | ios | khong | maychu | chan | tat | bat
+                tb: { trangThai: 'dang', dang: false, loi: '' },
                 // Hộp Cài đặt: đổi mật khẩu
                 cd: { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false },
 
@@ -76,6 +100,16 @@
                     setInterval(() => {
                         if (document.visibilityState === 'visible') { this.taiCho(false); }
                     }, 60000);
+                    // Bấm thông báo đẩy: SW báo cửa sổ đang mở chuyển sang tab Máy DAT; mở mới thì đường dẫn mang `#may`
+                    window.addEventListener('hashchange', () => { this.moTheoHash(); });
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.addEventListener('message', (e) => {
+                            const d = e.data;
+                            if (d && d.loai === 'mo' && typeof d.u === 'string' && d.u.indexOf('#may') >= 0) {
+                                if (location.hash === '#may') { this.moTheoHash(); } else { location.hash = '#may'; }
+                            }
+                        });
+                    }
                     this.token = localStorage.getItem(KHOA_TOKEN) || '';
                     this.taiPhienBan();
                     if (this.token) { await this.nhanQuyen(); }
@@ -192,7 +226,11 @@
                         this.napGhim();
                         this.khongCoQuyen = (d.quyen || []).indexOf('TRACUU_DAT') < 0
                             ? 'Tài khoản của bạn chưa được cấp quyền Tra cứu biển số DAT.' : '';
-                        if (!this.khongCoQuyen) { this.taiGoiY(); this.taiXong(); this.taiCho(true); }
+                        if (!this.khongCoQuyen) {
+                            this.taiGoiY(); this.taiXong(); this.taiCho(true);
+                            this.moTheoHash();
+                            this.tuDangKyLaiTb();
+                        }
                     } catch (e) {
                         if (e && e.ma !== 403 && e.thongBao) { this.bao(e.thongBao); }
                     }
@@ -211,6 +249,8 @@
                 },
 
                 dangXuat(imLang) {
+                    // Thông báo đẩy: hủy đăng ký thiết bị này (token còn thì báo máy chủ; token hết hạn thì chỉ hủy tại máy)
+                    this.huyPushKhiThoat(imLang ? '' : this.token);
                     // Người dùng tự bấm Đăng xuất (không phải token hết hạn) → hỏi có xóa ghim khỏi máy không
                     if (!imLang && this.ghim.length && this.khoaLuuGhim()
                             && window.confirm('Xóa luôn các học viên đã ghim khỏi máy này?')) {
@@ -239,6 +279,7 @@
                     this.capNhatHuy();
                     this.an = { mo: false, id: 0, lyDo: '', dang: false, loi: '' };
                     this.cd = { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
+                    this.tb = { trangThai: 'dang', dang: false, loi: '' };
                     this.ghimTim = '';
                     this.ghimTT = '';
                     this.ghimHang = '';
@@ -983,6 +1024,147 @@
                 moCaiDat() {
                     this.ngan = false;
                     this.cd = { mo: true, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
+                    this.kiemTb();
+                },
+
+                // ---------- Cài đặt: thông báo đẩy nền ----------
+                laIos() {
+                    return /iPad|iPhone|iPod/.test(navigator.userAgent || '')
+                        || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                },
+                laStandalone() {
+                    try {
+                        return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+                            || navigator.standalone === true;
+                    } catch (e) { return false; }
+                },
+                coHoTroPush() {
+                    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+                },
+                coTb() {
+                    try { return localStorage.getItem(KHOA_TB + ((this.user && this.user.username) || '')) === '1'; }
+                    catch (e) { return false; }
+                },
+                datCoTb(bat) {
+                    try {
+                        const k = KHOA_TB + ((this.user && this.user.username) || '');
+                        if (bat) { localStorage.setItem(k, '1'); } else { localStorage.removeItem(k); }
+                    } catch (e) { /* bỏ qua */ }
+                },
+                // Mở hộp Cài đặt: xác định trạng thái + TẢI TRƯỚC khóa /push/khoa và chờ SW sẵn sàng,
+                // để trong lúc bấm "Bật" lệnh await ĐẦU TIÊN là requestPermission (iOS đòi phải xin quyền từ cú bấm)
+                async kiemTb() {
+                    this.tb = { trangThai: 'dang', dang: false, loi: '' };
+                    TB_REG = null;
+                    TB_KHOA = '';
+                    try {
+                        if (this.laIos() && !this.laStandalone()) { this.tb.trangThai = 'ios'; return; }
+                        if (!this.coHoTroPush()) { this.tb.trangThai = 'khong'; return; }
+                        if (Notification.permission === 'denied') { this.tb.trangThai = 'chan'; return; }
+                        const [reg, kh] = await Promise.all([
+                            swSanSang(),
+                            this.api('/push/khoa').catch(() => null),
+                        ]);
+                        if (!reg) { this.tb.trangThai = 'khong'; return; }
+                        if (!kh || !kh.khoa) { this.tb.trangThai = 'maychu'; return; }
+                        TB_REG = reg;
+                        TB_KHOA = kh.khoa;
+                        const sub = await reg.pushManager.getSubscription();
+                        this.tb.trangThai = (sub && Notification.permission === 'granted' && this.coTb()) ? 'bat' : 'tat';
+                    } catch (e) { this.tb.trangThai = 'khong'; }
+                },
+                // Khóa của đăng ký hiện có có khớp khóa VAPID hiện hành không (đổi khóa service → đổi khóa VAPID)
+                khoaKhop(sub, khoa) {
+                    const ask = sub && sub.options && sub.options.applicationServerKey;
+                    if (!ask) { return true; }
+                    const a = new Uint8Array(ask);
+                    const b = b64uSangBytes(khoa);
+                    if (a.length !== b.length) { return false; }
+                    for (let i = 0; i < a.length; i++) { if (a[i] !== b[i]) { return false; } }
+                    return true;
+                },
+                // Đăng ký (hoặc đăng ký lại) thiết bị với khóa hiện hành rồi gửi lên máy chủ — luôn gán đúng chủ là tài khoản đang dùng
+                async dangKyThietBi(reg, khoa) {
+                    let sub = await reg.pushManager.getSubscription();
+                    if (sub && !this.khoaKhop(sub, khoa)) { await sub.unsubscribe(); sub = null; }
+                    if (!sub) {
+                        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uSangBytes(khoa) });
+                    }
+                    const j = sub.toJSON ? sub.toJSON() : {};
+                    const k = j.keys || {};
+                    await this.api('/push/dang-ky', {}, { body: { endpoint: sub.endpoint, p256dh: k.p256dh, auth: k.auth, khoa: khoa } });
+                    return sub;
+                },
+                async batTb() {
+                    if (this.tb.dang) { return; }
+                    this.tb.loi = '';
+                    this.tb.dang = true;
+                    try {
+                        const quyen = await Notification.requestPermission();      // PHẢI là await đầu tiên của cú bấm
+                        if (quyen === 'denied') { this.tb.trangThai = 'chan'; return; }
+                        if (quyen !== 'granted') { this.tb.loi = 'Bạn chưa cho phép thông báo.'; return; }
+                        if (!TB_REG || !TB_KHOA) { this.tb.loi = 'Chưa sẵn sàng, hãy đóng hộp này rồi mở lại sau giây lát.'; return; }
+                        await this.dangKyThietBi(TB_REG, TB_KHOA);
+                        this.datCoTb(true);
+                        this.tb.trangThai = 'bat';
+                    } catch (e) {
+                        this.tb.loi = (e && e.thongBao) || 'Không bật được thông báo. Hãy thử lại.';
+                    } finally { this.tb.dang = false; }
+                },
+                async tatTb() {
+                    if (this.tb.dang) { return; }
+                    this.tb.loi = '';
+                    this.tb.dang = true;
+                    try {
+                        const reg = TB_REG || await swSanSang();
+                        const sub = reg ? await reg.pushManager.getSubscription() : null;
+                        if (sub) {
+                            // Máy chủ không nhận được cũng thôi: endpoint chết sẽ tự bị xóa ở lần gửi sau (410)
+                            try { await this.api('/push/huy', {}, { body: { endpoint: sub.endpoint } }); } catch (e) { /* bỏ qua */ }
+                            await sub.unsubscribe();
+                        }
+                        this.datCoTb(false);
+                        this.tb.trangThai = 'tat';
+                    } catch (e) { this.tb.loi = 'Không tắt được thông báo. Hãy thử lại.'; }
+                    finally { this.tb.dang = false; }
+                },
+                // Mở ứng dụng: người này đã bật thông báo ở máy này → làm mới đăng ký (khóa VAPID đổi thì đăng ký lại,
+                // máy dùng chung thì gán đăng ký về đúng người đang đăng nhập). Chạy ngầm, lỗi thì thôi.
+                async tuDangKyLaiTb() {
+                    try {
+                        if (!this.coHoTroPush() || Notification.permission !== 'granted' || !this.coTb()) { return; }
+                        if (this.laIos() && !this.laStandalone()) { return; }
+                        const reg = await swSanSang();
+                        if (!reg) { return; }
+                        const kh = await this.api('/push/khoa');
+                        if (kh && kh.khoa) { await this.dangKyThietBi(reg, kh.khoa); }
+                    } catch (e) { /* lặng lẽ */ }
+                },
+                // Đăng xuất: báo máy chủ xóa đăng ký (nếu còn token), rồi LUÔN hủy đăng ký tại máy
+                huyPushKhiThoat(token) {
+                    try {
+                        if (!('serviceWorker' in navigator) || !('PushManager' in window)) { return; }
+                        navigator.serviceWorker.getRegistration().then(async (reg) => {
+                            if (!reg) { return; }
+                            const sub = await reg.pushManager.getSubscription();
+                            if (!sub) { return; }
+                            if (token) {
+                                fetch(API_URL + '/push/huy', {
+                                    method: 'POST', keepalive: true,
+                                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ endpoint: sub.endpoint }),
+                                }).catch(() => {});
+                            }
+                            await sub.unsubscribe();
+                        }).catch(() => {});
+                    } catch (e) { /* bỏ qua */ }
+                },
+                // Mở từ thông báo đẩy: `#may` → tab Máy DAT + hộp "Chờ bạn xác nhận"; xong thì xóa hash
+                moTheoHash() {
+                    if (location.hash !== '#may' || !this.token || this.khongCoQuyen) { return; }
+                    this.taiCho(true);
+                    this.doiTab('may');
+                    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* bỏ qua */ }
                 },
                 async doiMatKhau() {
                     if (this.cd.dang) { return; }

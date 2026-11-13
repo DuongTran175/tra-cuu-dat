@@ -2,6 +2,7 @@
     "name": "Tra cứu DAT",
     "short_name": "Tra cứu DAT",
     "description": "Tra cứu phân xe DAT qua Internet",
+    "id": "./",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",

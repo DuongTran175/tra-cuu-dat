@@ -851,6 +851,28 @@
                         <div class="sheet-tieu-de">Cài đặt</div>
                         <button type="button" class="nut phu nho" @click="cd.mo = false">Đóng</button>
                     </div>
+                    <div class="khoi-tb" id="khoi-tb">
+                        <div class="tieu-de-nho">Thông báo</div>
+                        <div class="tb-ghi" id="tb-dang" x-show="tb.trangThai === 'dang'">Đang kiểm tra thông báo trên máy này…</div>
+                        <div class="tb-ghi" id="tb-ios" x-show="tb.trangThai === 'ios'" x-cloak>Để nhận thông báo trên iPhone/iPad: bấm <b>Chia sẻ</b> → <b>Thêm vào MH chính</b>, rồi mở ứng dụng từ biểu tượng vừa thêm và vào lại mục Cài đặt này để bật.</div>
+                        <div class="tb-ghi" id="tb-khong" x-show="tb.trangThai === 'khong'" x-cloak>Thiết bị chưa hỗ trợ thông báo.</div>
+                        <div class="tb-ghi" id="tb-maychu" x-show="tb.trangThai === 'maychu'" x-cloak>Máy chủ chưa bật tính năng thông báo, hãy thử lại sau.</div>
+                        <div class="tb-ghi tb-chan" id="tb-chan" x-show="tb.trangThai === 'chan'" x-cloak>Thông báo đã bị chặn. Hãy bật lại trong Cài đặt của máy (mục thông báo của trình duyệt hoặc ứng dụng này).</div>
+                        <div id="tb-tat" x-show="tb.trangThai === 'tat'" x-cloak>
+                            <div class="tb-ghi">Nhận thông báo khi có lệnh bàn giao máy DAT chờ bạn xác nhận, kể cả lúc đã đóng ứng dụng.</div>
+                            <button type="button" class="nut rong" id="tb-bat" :disabled="tb.dang" @click="batTb()">
+                                <span class="xoay" x-show="tb.dang"></span>
+                                <span x-text="tb.dang ? 'Đang bật…' : 'Bật thông báo'"></span>
+                            </button>
+                        </div>
+                        <div id="tb-bat-ok" x-show="tb.trangThai === 'bat'" x-cloak>
+                            <div class="tb-ghi"><span class="tb-ok">Đã bật.</span> Máy này sẽ báo khi có lệnh bàn giao máy DAT chờ bạn xác nhận.</div>
+                            <button type="button" class="nut phu rong" id="tb-tat-nut" :disabled="tb.dang" @click="tatTb()">
+                                <span x-text="tb.dang ? 'Đang tắt…' : 'Tắt thông báo'"></span>
+                            </button>
+                        </div>
+                        <div class="tb-loi" id="tb-loi" x-show="tb.loi" x-text="tb.loi"></div>
+                    </div>
                     <div class="tieu-de-nho">Đổi mật khẩu</div>
                     <form @submit.prevent="doiMatKhau()" autocomplete="on">
                         <input type="text" class="an-dn" autocomplete="username" :value="user.username" readonly tabindex="-1" aria-hidden="true">
