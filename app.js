@@ -29,6 +29,13 @@
             }
             return phan ? kq + ' — ' + phan : kq;
         }
+        // Cảnh báo xe (14/11/2026): biển chuẩn hóa như chuanBien() của Edge Function (chỉ chữ + số, HOA)
+        function chuanBienJs(b) { return String(b || '').replace(/[^\p{L}\p{N}]/gu, '').toUpperCase(); }
+        // 'yyyy-mm-dd' → 'dd/mm/yyyy'
+        function ngayViet(iso) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+            return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+        }
         const TOI_DA_ANH_NHO = 8;      // hộp xe / hộp khóa: tối đa bấy nhiêu ảnh nhỏ mỗi lần mở (mỗi ảnh ăn 1 lượt xem)
         // Thông báo đẩy nền (GĐ2): đối tượng của trình duyệt (ServiceWorkerRegistration…) KHÔNG đặt vào state Alpine
         // (Proxy làm hỏng lời gọi) → giữ ở biến ngoài. Cờ `tcdat_tb_<tên đăng nhập>` = người này đã bật thông báo ở máy này.
@@ -96,6 +103,11 @@
                 hopCho: { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' },
                 // Trang Quản lý kho DAT (chỉ tài khoản có quyền QUANLY_KHO_DAT)
                 kho: { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false },
+                // Cảnh báo xe sát hạch / hết hạn GPXTL (chỉ cảnh báo, không chặn): `xe` khóa theo biển chuẩn, `dsXe` mọi xe
+                cb: { xe: {}, dsXe: [], homNay: '' },
+                // Lịch sát hạch (chỉ người kho): form nhập + danh sách sắp tới
+                lich: { mo: false, dang: false, loi: '', ds: [], daTai: false, homNay: '',
+                        ngay: '', tt: '', ghiChu: '', tim: '', chon: {}, dan: '', luu: false, loiLuu: '' },
                 an: { mo: false, id: 0, lyDo: '', dang: false, loi: '' },
                 mangOk: navigator.onLine !== false,   // đèn Online/Offline ở đầu trang
                 // Cài đặt → khối "Thông báo": dang | ios | khong | maychu | chan | tat | bat
@@ -110,8 +122,12 @@
                     this.theoDoiVungNhin();
                     // Hộp "Chờ bạn xác nhận": hỏi lại khi quay về trang và mỗi 60 giây lúc trang đang hiện
                     document.addEventListener('visibilitychange', () => {
-                        if (document.visibilityState === 'visible') { this.taiCho(true); }
+                        if (document.visibilityState === 'visible') { this.taiCho(true); this.taiCanhBao(); }
                     });
+                    // Cảnh báo xe: hỏi lại mỗi 10 phút lúc trang đang hiện (qua nửa đêm giờ VN thì "hôm nay" đổi)
+                    setInterval(() => {
+                        if (document.visibilityState === 'visible') { this.taiCanhBao(); }
+                    }, 600000);
                     setInterval(() => {
                         if (document.visibilityState === 'visible') { this.taiCho(false); }
                     }, 60000);
@@ -242,7 +258,7 @@
                         this.khongCoQuyen = (d.quyen || []).indexOf('TRACUU_DAT') < 0
                             ? 'Tài khoản của bạn chưa được cấp quyền Tra cứu biển số DAT.' : '';
                         if (!this.khongCoQuyen) {
-                            this.taiGoiY(); this.taiXong(); this.taiCho(true);
+                            this.taiGoiY(); this.taiXong(); this.taiCho(true); this.taiCanhBao();
                             this.moTheoHash();
                             this.tuDangKyLaiTb();
                         }
@@ -291,6 +307,9 @@
                     this.cho = { cho_toi: [], toi_gui: [], so: 0, kho: null, dang: false };
                     this.hopCho = { mo: false, tuChoiId: 0, lyDo: '', dangId: 0, loi: '' };
                     this.kho = { dang: false, loi: '', ds: [], dem: {}, loc: 'tat_ca', tim: '', daTai: false };
+                    this.cb = { xe: {}, dsXe: [], homNay: '' };
+                    this.lich = { mo: false, dang: false, loi: '', ds: [], daTai: false, homNay: '',
+                                  ngay: '', tt: '', ghiChu: '', tim: '', chon: {}, dan: '', luu: false, loiLuu: '' };
                     this.capNhatHuy();
                     this.an = { mo: false, id: 0, lyDo: '', dang: false, loi: '' };
                     this.cd = { mo: false, cu: '', moi: '', lai: '', hien: false, dang: false, loi: '', xong: false };
@@ -394,7 +413,7 @@
                 // ---------- bảng chọn dùng chung ----------
                 // `dich` chỉ dùng cho loại nguoi_dung: ô nào nhận người được chọn ('xn.den' | 'bg.tu' | 'bg.den')
                 moChon(loai, dich) {
-                    const nguon = { khoa: this.goiY.khoa, bien_so: this.goiY.bien_so, may_bien: this.goiY.bien_so,
+                    const nguon = { khoa: this.goiY.khoa, bien_so: this.goiY.bien_so, may_bien: this.dsBienMay(),
                                     giao_vien: this.goiY.giao_vien, nguoi_nop: this.goiY.nguoi_quan_ly };
                     let ds = nguon[loai] || [];
                     let nhan = {};
@@ -991,6 +1010,7 @@
                     if (loc === 'dang_o') { return d.dang_o || 0; }
                     if (loc === 'dang_chuyen') { return d.dang_chuyen || 0; }
                     if (loc === 'qua_han') { return d.qua_han || 0; }
+                    if (loc === 'khong_chay') { return d.khong_chay || 0; }
                     return 0;
                 },
                 get khoLoc() {
@@ -1001,8 +1021,9 @@
                             || (loc === 'kho' && (m.trang_thai === 'kho' || m.trang_thai === 'chua_ro'))
                             || (loc === 'dang_o' && m.trang_thai === 'dang_o')
                             || (loc === 'dang_chuyen' && m.trang_thai === 'dang_chuyen')
-                            || (loc === 'qua_han' && m.qua_han))
-                        && (!q || this.chiSo([m.bien_so, m.bien_chuan, m.ten]).indexOf(q) >= 0));
+                            || (loc === 'qua_han' && m.qua_han)
+                            || (loc === 'khong_chay' && this.cbMuc(m.canh_bao) === 'chan'))
+                        && (!q || this.chiSo([m.bien_so, m.bien_chuan, m.ten, m.loai_xe, m.trung_tam]).indexOf(q) >= 0));
                 },
                 nhanTrangThaiMay(m) {
                     return { kho: 'Ở kho', chua_ro: 'Chưa rõ — coi như ở kho', dang_o: 'Đang ở ' + (m.ten || ''),
@@ -1037,6 +1058,153 @@
                     await this.xuLyLenh(m.lenh, 'kho_thay');
                 },
                 async khoHuyLenh(m) { await this.huyLenhHoi(m.lenh); },
+
+                // ---------- cảnh báo xe: sát hạch / hết hạn GPXTL (chỉ CẢNH BÁO) ----------
+                async taiCanhBao() {
+                    if (this.khongCoQuyen || !this.token) { return; }
+                    try {
+                        const d = await this.api('/may-dat/canh-bao');
+                        this.cb = { xe: d.xe || {}, dsXe: d.ds_xe || [], homNay: d.hom_nay || '' };
+                    } catch (e) { /* không có cảnh báo vẫn dùng được các tab khác */ }
+                },
+                // Gợi ý biển ở ô chọn máy: biển trong phân xe ∪ MỌI xe của trung tâm (gồm cả xe vắng, xe chờ đào tạo)
+                dsBienMay() {
+                    const m = new Map();
+                    (this.goiY.bien_so || []).forEach(b => { const c = chuanBienJs(b); if (c && !m.has(c)) { m.set(c, b); } });
+                    (this.cb.dsXe || []).forEach(x => { if (x.bien_chuan && !m.has(x.bien_chuan)) { m.set(x.bien_chuan, x.bien_so || x.bien_chuan); } });
+                    return [...m.values()];
+                },
+                cbXe(bien) { return (this.cb.xe || {})[chuanBienJs(bien)] || null; },
+                // Danh sách huy hiệu `{muc: 'do'|'cam'|'xam', t}` từ MỘT mục cảnh báo (cả của /may-dat/canh-bao lẫn /may-dat/xe)
+                cbDongTu(e) {
+                    if (!e) { return []; }
+                    const ra = [];
+                    (e.ly_do || []).forEach(l => {
+                        if (l === 'sat_hach_hom_nay') { ra.push({ muc: 'do', t: 'Xe sát hạch hôm nay' }); }
+                        else if (l === 'sat_hach_sap_toi') { ra.push({ muc: 'cam', t: 'Sắp sát hạch ' + ngayViet(e.sat_hach_ngay).slice(0, 5) }); }
+                        else if (l === 'het_han') {
+                            ra.push({ muc: 'do', t: 'Hết hạn GPXTL (đăng kiểm) ' + ngayViet(e.han_gpxtl) + ' — báo bộ phận quản lý xe' });
+                        } else if (l === 'sap_het_han') {
+                            ra.push({ muc: 'cam', t: (e.so_ngay_han === 0 ? 'GPXTL (đăng kiểm) hết hạn hôm nay'
+                                : 'Sắp hết hạn GPXTL (đăng kiểm): còn ' + e.so_ngay_han + ' ngày') + ' (' + ngayViet(e.han_gpxtl) + ')' });
+                        }
+                    });
+                    if (e.la_xe_sat_hach) { ra.push({ muc: 'xam', t: 'Xe sát hạch' }); }
+                    return ra;
+                },
+                cbDong(bien) { return this.cbDongTu(this.cbXe(bien)); },
+                // Mức nặng nhất của một mục: 'chan' (đỏ) | 'canh_bao' (cam) | ''
+                cbMuc(e) { return e && e.muc ? e.muc : ''; },
+                cbChu(muc) { return muc === 'chan' ? 'Không nên chạy hôm nay' : muc === 'canh_bao' ? 'Cần lưu ý' : ''; },
+
+                // ---------- lịch sát hạch (chỉ người kho) ----------
+                hangDong(ds) { return (ds || []).slice().sort((a, b) => (b.loai_xe === 'Xe sát hạch') - (a.loai_xe === 'Xe sát hạch') || String(a.bien_chuan).localeCompare(String(b.bien_chuan))); },
+                moLich() {
+                    this.lich.mo = !this.lich.mo;
+                    if (!this.lich.mo) { return; }
+                    if (!this.lich.ngay) { this.lich.ngay = this.cb.homNay || ''; }
+                    this.lichDatMacDinh();
+                    this.taiLich();
+                },
+                // Mặc định tick sẵn MỌI xe 'Xe sát hạch' (của trung tâm đang chọn; rỗng = tất cả)
+                lichDatMacDinh() {
+                    const chon = {};
+                    (this.cb.dsXe || []).forEach(x => {
+                        if (x.loai_xe === 'Xe sát hạch' && (!this.lich.tt || x.trung_tam === this.lich.tt)) { chon[x.bien_chuan] = true; }
+                    });
+                    this.lich.chon = chon;
+                },
+                get lichDsTt() {
+                    const t = {};
+                    (this.cb.dsXe || []).forEach(x => { if (x.trung_tam) { t[x.trung_tam] = 1; } });
+                    return Object.keys(t).sort();
+                },
+                // Xe hiện trong ô chọn: lọc theo trung tâm + ô tìm; "Xe sát hạch" xếp đầu; tối đa 80 dòng (gõ để thu hẹp)
+                get lichXe() {
+                    const q = this.boDau(this.lich.tim).trim();
+                    return this.hangDong((this.cb.dsXe || []).filter(x =>
+                        (!this.lich.tt || x.trung_tam === this.lich.tt)
+                        && (!q || this.boDau((x.bien_so || '') + ' ' + (x.bien_chuan || '') + ' ' + (x.loai_xe || '')).indexOf(q) >= 0)
+                    )).slice(0, 80);
+                },
+                get lichSoChon() { return Object.keys(this.lich.chon).filter(k => this.lich.chon[k]).length; },
+                async taiLich() {
+                    if (!this.coQuyenKho()) { return; }
+                    this.lich.dang = true;
+                    this.lich.loi = '';
+                    try {
+                        const d = await this.api('/kho-dat/lich-sat-hach');
+                        this.lich.ds = d.lich || [];
+                        this.lich.homNay = d.hom_nay || '';
+                        this.lich.daTai = true;
+                    } catch (e) { this.lich.loi = e.thongBao || 'Lỗi'; }
+                    finally { this.lich.dang = false; }
+                },
+                // Danh sách lịch gộp theo NGÀY (mỗi ngày: các xe + ghi chú + người nhập)
+                get lichNhom() {
+                    const m = new Map();
+                    (this.lich.ds || []).forEach(l => {
+                        if (!m.has(l.ngay)) { m.set(l.ngay, { ngay: l.ngay, ds: [], ghi_chu: l.ghi_chu, ten: l.tao_boi_ten }); }
+                        m.get(l.ngay).ds.push(l);
+                    });
+                    return [...m.values()];
+                },
+                // Gom thao tác: xe sát hạch bị bỏ tick → bo_bien; xe khác được tick → them_bien; cộng thêm biển dán vào
+                async luuLich() {
+                    if (this.lich.luu) { return; }
+                    this.lich.loiLuu = '';
+                    if (!this.lich.ngay) { this.lich.loiLuu = 'Hãy chọn ngày sát hạch.'; return; }
+                    if ([...this.lich.ghiChu].length > TOI_DA_GHI_CHU) { this.lich.loiLuu = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
+                    const macDinh = new Set();
+                    const dsTt = (this.cb.dsXe || []).filter(x => !this.lich.tt || x.trung_tam === this.lich.tt);
+                    dsTt.forEach(x => { if (x.loai_xe === 'Xe sát hạch') { macDinh.add(x.bien_chuan); } });
+                    const them = new Set();
+                    const bo = [];
+                    Object.keys(this.lich.chon).forEach(k => { if (this.lich.chon[k] && !macDinh.has(k)) { them.add(k); } });
+                    macDinh.forEach(k => { if (!this.lich.chon[k]) { bo.push(k); } });
+                    String(this.lich.dan || '').split(/[\n,;]+/).forEach(b => { const c = chuanBienJs(b); if (c) { them.add(c); } });
+                    if (them.size > 60 || bo.length > 60) {
+                        this.lich.loiLuu = 'Mỗi lần chỉ thêm/bỏ tối đa 60 xe so với danh sách xe sát hạch mặc định.';
+                        return;
+                    }
+                    if (this.lichSoChon === 0 && !String(this.lich.dan || '').trim()) { this.lich.loiLuu = 'Chưa chọn xe nào.'; return; }
+                    this.lich.luu = true;
+                    try {
+                        const d = await this.api('/kho-dat/lich-sat-hach', {}, { body: {
+                            ngay: this.lich.ngay, trung_tam: this.lich.tt, ghi_chu: this.lich.ghiChu,
+                            them_bien: [...them], bo_bien: bo } });
+                        this.bao('Đã lưu lịch sát hạch ' + ngayViet(d.ngay) + ': ' + d.so_moi + ' xe mới'
+                            + (d.so_trung ? ', ' + d.so_trung + ' xe đã có' : ''));
+                        this.lich.dan = '';
+                        await this.taiLich();
+                        this.taiCanhBao();
+                        this.taiKho();
+                    } catch (e) { this.lich.loiLuu = e.thongBao || 'Lỗi'; }
+                    finally { this.lich.luu = false; }
+                },
+                async huyLich(l) {
+                    if (!window.confirm('Hủy lịch sát hạch ' + ngayViet(l.ngay) + ' của xe ' + (l.bien_so || '') + '?')) { return; }
+                    try {
+                        await this.api('/kho-dat/lich-sat-hach/huy', {}, { body: { id: l.id } });
+                        this.bao('Đã hủy lịch');
+                    } catch (e) { this.bao(e.thongBao || 'Lỗi'); }
+                    await this.taiLich();
+                    this.taiCanhBao();
+                    this.taiKho();
+                },
+                // Hủy cả ngày: từng xe một (6 yêu cầu song song mỗi lượt), lỗi một xe không dừng các xe còn lại
+                async huyLichNgay(nhom) {
+                    if (!window.confirm('Hủy lịch sát hạch ngày ' + ngayViet(nhom.ngay) + ' của ' + nhom.ds.length + ' xe?')) { return; }
+                    let loi = 0;
+                    for (let i = 0; i < nhom.ds.length; i += 6) {
+                        await Promise.all(nhom.ds.slice(i, i + 6).map(l =>
+                            this.api('/kho-dat/lich-sat-hach/huy', {}, { body: { id: l.id } }).catch(() => { loi += 1; })));
+                    }
+                    this.bao(loi ? 'Đã hủy, còn ' + loi + ' xe chưa hủy được' : 'Đã hủy lịch ngày ' + ngayViet(nhom.ngay));
+                    await this.taiLich();
+                    this.taiCanhBao();
+                    this.taiKho();
+                },
 
                 // ---------- Cài đặt: đổi mật khẩu ----------
                 moCaiDat() {

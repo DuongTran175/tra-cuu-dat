@@ -252,6 +252,9 @@
                             <button type="button" class="bien-bam" x-show="r.BienSoXe" @click="moAnhXe(r.BienSoXe, r.TrungTam)" x-text="r.BienSoXe"></button>
                             <span class="chua-co" x-show="!r.BienSoXe">chưa có xe</span>
                         </div>
+                        <div class="cb-dong" x-show="r.BienSoXe && cbDong(r.BienSoXe).length > 0">
+                            <template x-for="c in cbDong(r.BienSoXe)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
+                        </div>
                         <div class="hv-dong" x-show="r.TenGV || r.MaGV">
                             <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
                             <button type="button" class="hv-gv-bam" @click="moGV(r)" x-text="r.TenGV || r.MaGV"></button>
@@ -347,6 +350,9 @@
                                 <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
                                 <button type="button" class="bien-bam" x-show="r.BienSoXe" @click="moAnhXe(r.BienSoXe, r.TrungTam)" x-text="r.BienSoXe"></button>
                                 <span class="chua-co" x-show="!r.BienSoXe">chưa có xe</span>
+                            </div>
+                            <div class="cb-dong" x-show="r.BienSoXe && cbDong(r.BienSoXe).length > 0">
+                                <template x-for="c in cbDong(r.BienSoXe)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
                             </div>
                             <div class="hv-dong" x-show="r.TenGV || r.MaGV">
                                 <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
@@ -449,6 +455,12 @@
                     <div class="card may-giu">
                         <div class="dem-ket-qua" style="margin:0 0 6px;">Đang giữ máy DAT</div>
                         <button type="button" class="xe-bien bien-bam" @click="moAnhXe(may.kq.bien_so, '')" x-text="may.kq ? may.kq.bien_so : ''"></button>
+                        <div class="cb-dong" x-show="may.kq && cbDongTu(may.kq.canh_bao).length > 0">
+                            <template x-for="c in (may.kq ? cbDongTu(may.kq.canh_bao) : [])" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
+                        </div>
+                        <div class="phu nho" x-show="may.kq && may.kq.loai_xe" x-text="may.kq ? 'Loại xe (Quản lý xe): ' + may.kq.loai_xe : ''"></div>
+                        <div class="phu nho" x-show="may.kq && may.kq.canh_bao && may.kq.canh_bao.han_gpxtl"
+                             x-text="may.kq && may.kq.canh_bao ? 'Hạn GPXTL (đăng kiểm) ' + ngayViet(may.kq.canh_bao.han_gpxtl) + ' — theo dữ liệu Quản lý xe, đồng bộ lúc ' + (daiDuLieu || '').replace('Dữ liệu cập nhật lúc ', '') : ''"></div>
                         <div class="may-nguoi">
                             <span class="chu-cai lon" x-text="chuCaiDau(may.kq ? may.kq.dang_giu.ten : '')"></span>
                             <div style="min-width:0;">
@@ -511,6 +523,63 @@
 
             <!-- ===== Tab Kho DAT (chỉ người có quyền QUANLY_KHO_DAT) ===== -->
             <section id="muc-kho-dat" x-show="tab === 'kho' && !khongCoQuyen && coQuyenKho()" x-cloak>
+                <!-- Lịch sát hạch: thủ kho nhập NGÀY khi có lịch; mặc định áp cho mọi xe loại "Xe sát hạch" -->
+                <div class="card lich-sh" id="muc-lich-sh">
+                    <button type="button" class="lich-dau" @click="moLich()" :aria-expanded="lich.mo">
+                        <span class="lich-tieu">Lịch sát hạch</span>
+                        <span class="phu nho" x-text="lich.mo ? 'Thu gọn' : 'Nhập ngày sát hạch để báo xe không chạy DAT'"></span>
+                    </button>
+                    <div x-show="lich.mo" x-cloak>
+                        <label for="lich-ngay">Ngày sát hạch</label>
+                        <input id="lich-ngay" type="date" x-model="lich.ngay" :min="cb.homNay" aria-label="Ngày sát hạch">
+                        <label for="lich-tt">Trung tâm</label>
+                        <select id="lich-tt" x-model="lich.tt" @change="lichDatMacDinh()" aria-label="Trung tâm">
+                            <option value="">Tất cả trung tâm</option>
+                            <template x-for="t in lichDsTt" :key="t"><option :value="t" x-text="t"></option></template>
+                        </select>
+                        <div class="phu nho lich-ghi" x-text="'Mặc định áp cho mọi xe loại “Xe sát hạch” (đang chọn ' + lichSoChon + ' xe). Bỏ tick xe không dự sát hạch, tick thêm xe khác nếu cần.'"></div>
+                        <input type="search" x-model="lich.tim" placeholder="Tìm biển số / loại xe (không cần dấu)" autocomplete="off" aria-label="Tìm xe">
+                        <div class="lich-xe-ds">
+                            <template x-for="x in lichXe" :key="x.bien_chuan">
+                                <label class="lich-xe">
+                                    <input type="checkbox" x-model="lich.chon[x.bien_chuan]">
+                                    <span class="lich-bien" x-text="x.bien_so"></span>
+                                    <span class="badge xam" x-show="x.loai_xe" x-text="x.loai_xe"></span>
+                                    <span class="phu nho" x-show="x.trung_tam" x-text="x.trung_tam"></span>
+                                </label>
+                            </template>
+                            <div class="phu nho" x-show="lichXe.length === 0">Không có xe nào khớp.</div>
+                        </div>
+                        <label for="lich-dan">Dán thêm danh sách biển số (cách nhau bằng dấu phẩy, chấm phẩy hoặc xuống dòng)</label>
+                        <textarea id="lich-dan" x-model="lich.dan" placeholder="VD: 15A-509.02, 29C-222.22" aria-label="Dán danh sách biển số"></textarea>
+                        <label for="lich-ghi">Ghi chú (không bắt buộc)</label>
+                        <input id="lich-ghi" type="text" x-model="lich.ghiChu" maxlength="300" placeholder="VD: Kỳ sát hạch hạng B tháng 11" aria-label="Ghi chú">
+                        <div class="loi" x-show="lich.loiLuu" x-text="lich.loiLuu"></div>
+                        <div class="hv-chan">
+                            <button type="button" class="nut nho" :disabled="lich.luu" @click="luuLich()" x-text="lich.luu ? 'Đang lưu…' : 'Lưu lịch sát hạch'"></button>
+                        </div>
+                        <div class="dem-ket-qua" x-text="'Lịch sắp tới (' + lichNhom.length + ' ngày)'"></div>
+                        <div class="loi" x-show="lich.loi" x-text="lich.loi"></div>
+                        <div class="phu nho" x-show="lich.dang && !lich.daTai">Đang tải…</div>
+                        <div class="phu nho" x-show="lich.daTai && lichNhom.length === 0">Chưa có lịch sát hạch nào sắp tới.</div>
+                        <template x-for="nh in lichNhom" :key="nh.ngay">
+                            <details class="lich-ngay-box">
+                                <summary>
+                                    <b x-text="ngayViet(nh.ngay)"></b>
+                                    <span class="phu nho" x-text="nh.ds.length + ' xe' + (nh.ghi_chu ? ' · ' + nh.ghi_chu : '') + ' · nhập bởi ' + nh.ten"></span>
+                                </summary>
+                                <template x-for="l in nh.ds" :key="l.id">
+                                    <div class="lich-dong">
+                                        <span class="lich-bien" x-text="l.bien_so"></span>
+                                        <span class="phu nho" x-text="[l.trung_tam, l.loai_xe].filter(Boolean).join(' · ')"></span>
+                                        <button type="button" class="nut phu nho" @click="huyLich(l)">Hủy</button>
+                                    </div>
+                                </template>
+                                <div class="hv-chan"><button type="button" class="nut phu nho" @click="huyLichNgay(nh)">Hủy cả ngày</button></div>
+                            </details>
+                        </template>
+                    </div>
+                </div>
                 <div class="card the-loc">
                     <input type="search" id="kho-tim" x-model="kho.tim" autocomplete="off" placeholder="Tìm biển số hoặc tên người giữ (không cần dấu)" aria-label="Tìm máy DAT">
                     <div class="pill-hang" style="margin-top:10px;">
@@ -519,6 +588,7 @@
                         <button type="button" class="pill" :class="kho.loc === 'dang_o' ? 'active' : ''" @click="kho.loc = 'dang_o'" x-text="'Đang ở người (' + demKho('dang_o') + ')'"></button>
                         <button type="button" class="pill" :class="kho.loc === 'dang_chuyen' ? 'active' : ''" @click="kho.loc = 'dang_chuyen'" x-text="'Đang chuyển (' + demKho('dang_chuyen') + ')'"></button>
                         <button type="button" class="pill do" :class="kho.loc === 'qua_han' ? 'active' : ''" @click="kho.loc = 'qua_han'" x-text="'Quá 24h (' + demKho('qua_han') + ')'"></button>
+                        <button type="button" class="pill do" :class="kho.loc === 'khong_chay' ? 'active' : ''" @click="kho.loc = 'khong_chay'" x-text="'Không chạy được hôm nay (' + demKho('khong_chay') + ')'"></button>
                     </div>
                 </div>
                 <div class="empty-state loi-trang" x-show="kho.loi">
@@ -535,6 +605,10 @@
                             <span class="badge" :class="m.trang_thai === 'dang_chuyen' ? 'cho' : (m.trang_thai === 'dang_o' ? '' : 'xam')" x-text="nhanTrangThaiMay(m)"></span>
                             <span class="badge do" x-show="m.qua_han">Quá 24 giờ</span>
                         </div>
+                        <div class="cb-dong" x-show="cbDongTu(m.canh_bao).length > 0">
+                            <template x-for="c in cbDongTu(m.canh_bao)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
+                        </div>
+                        <div class="phu nho" x-show="m.loai_xe || m.trung_tam" x-text="[m.trung_tam, m.loai_xe].filter(Boolean).join(' · ')"></div>
                         <div class="phu nho" x-show="m.tu_luc" x-text="'Từ ' + gioVn(m.tu_luc)"></div>
                         <div class="kho-lenh" x-show="m.lenh">
                             <div x-text="m.lenh ? moTaLenh(m.lenh) : ''"></div>
@@ -577,6 +651,10 @@
                     <div class="sheet-dau">
                         <div class="sheet-tieu-de">Đã chạy xong DAT</div>
                         <button type="button" class="nut phu nho" @click="xn.mo = false">Đóng</button>
+                    </div>
+                    <div class="canh-bao-xe" x-show="xn.mo && cbDong(xn.r.BienSoXe).filter(c => c.muc !== 'xam').length > 0">
+                        <div class="canh-bao-xe-tieu">Lưu ý về xe này (chỉ cảnh báo, bạn vẫn ghi nhận được)</div>
+                        <template x-for="c in cbDong(xn.r.BienSoXe)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
                     </div>
                     <div class="hv-ten" x-text="xn.r.HoVaTen"></div>
                     <div class="hv-ma" x-text="xn.r.MaDK"></div>
@@ -626,6 +704,10 @@
                     </div>
                     <label for="bg-bien">Biển số xe</label>
                     <input id="bg-bien" type="text" readonly :value="bg.bien">
+                    <div class="canh-bao-xe" x-show="bg.mo && cbDong(bg.bien).filter(c => c.muc !== 'xam').length > 0">
+                        <div class="canh-bao-xe-tieu">Lưu ý về xe này (chỉ cảnh báo, bạn vẫn giao/nhận được)</div>
+                        <template x-for="c in cbDong(bg.bien)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
+                    </div>
                     <label>Bạn muốn…</label>
                     <div class="phan-doan nhieu">
                         <template x-for="k in dsKieuBg()" :key="k.ma">
@@ -773,6 +855,9 @@
                     <div class="sheet-dau">
                         <div class="sheet-tieu-de">Xe <button type="button" class="bien-bam" @click="moAnhXe(ctXe.bien_so, ctXe.trung_tam)" x-text="ctXe.bien_so"></button></div>
                         <button type="button" class="nut phu nho" @click="ctXe.mo = false">Đóng</button>
+                    </div>
+                    <div class="cb-dong" x-show="cbDong(ctXe.bien_so).length > 0">
+                        <template x-for="c in cbDong(ctXe.bien_so)" :key="c.t"><span class="badge cb" :class="c.muc" x-text="c.t"></span></template>
                     </div>
                     <div class="phu nho" x-show="!ctXe.dang && !ctXe.loi"
                          x-text="'Đang xem ' + ctXe.khoa.length + ' khóa gần nhất' + (ctXe.khoa_an > 0 ? ' · còn ' + ctXe.khoa_an + ' khóa cũ' : '')"></div>
