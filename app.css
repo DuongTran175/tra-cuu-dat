@@ -393,3 +393,14 @@ svg { flex-shrink: 0; }
 .lich-ngay-box summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .lich-dong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .lich-dong .nut { margin-left: auto; }
+
+/* Nhờ giáo viên dạy hộ (15/11/2026) */
+.nho-bang { width: 100%; margin: 0 0 10px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--tim);
+            background: var(--tim-bg); color: var(--tim); font-weight: 700; font-size: 14px; text-align: left;
+            display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nho-bang span { min-width: 0; overflow-wrap: anywhere; }
+.nho-tieu { margin: 16px 2px 8px; font-weight: 800; font-size: 14px; color: var(--text-sub); }
+.nho-tick { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 4px; font-weight: 600; min-width: 0; }
+.nho-tick input[type="checkbox"] { width: 22px; height: 22px; min-width: 22px; padding: 0; margin: 1px 0 0; border-radius: 6px;
+                                   accent-color: var(--accent); }
+.nho-tick span { min-width: 0; overflow-wrap: anywhere; }

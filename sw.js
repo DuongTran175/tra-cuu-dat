@@ -1,7 +1,7 @@
 // Service Worker tối giản cho GitHub Pages: network-first cho trang, KHÔNG ép cập nhật.
 // Chỉ để trang cài được lên màn hình chính (+ nhận THÔNG BÁO ĐẨY nền về lệnh bàn giao máy DAT, GĐ2). Chỉ xử lý GET CÙNG origin: request tới API (khác origin,
 // Supabase) KHÔNG bị chặn và KHÔNG bao giờ được lưu vào cache — dữ liệu học viên không nằm ở đây.
-const TEN_CACHE = 'tcdat-pages-v13';
+const TEN_CACHE = 'tcdat-pages-v14';
 const TAI_SAN = ['./icon-192.png', './icon-512.png', './manifest.json', './app.js', './app.css'];
 
 self.addEventListener('install', (e) => {
@@ -43,7 +43,7 @@ function xuLyPush(duLieu, reg, nav) {
         if (typeof d.u === 'string' && (d.u.indexOf('./') === 0 || d.u.charAt(0) === '#')) { u = d.u; }
     }
     const hien = Promise.resolve(reg.showNotification(t, {
-        body: b, tag: 'tcdat-cho', renotify: true,
+        body: b, tag: u.indexOf('#ghim') >= 0 ? 'tcdat-nho' : 'tcdat-cho', renotify: true,
         icon: './icon-192.png', badge: './icon-192.png', data: { u: u },
     }));
     return hien.then(() => {

@@ -90,7 +90,10 @@
                 anhGv: {},              // khóa `trung_tâm|mã GV` → blob URL (bản sao phản ứng của ANH_GV)
                 ghim: [],
                 ghimTim: '', ghimTT: '', ghimHang: '',
-                ghimMuc: 'dang',        // 'dang' = Đang chạy · 'xong' = Đã hoàn thành DAT
+                ghimMuc: 'dang',        // 'dang' = Đang chạy · 'xong' = Đã hoàn thành DAT · 'ho' = Nhờ dạy hộ
+                // Nhờ giáo viên dạy hộ (lưu trên máy chủ): toi_nho = tôi nhờ người khác · nho_toi = người khác nhờ tôi
+                nho: { bat: true, toi_nho: [], nho_toi: [], dang: false, loi: '' },
+                hopNho: { mo: false, khoa: '', den: '', denTen: '', ghiChu: '', giaoMay: false, kiemMay: false, lyDoKhoa: '', dang: false, loi: '' },
                 // Danh sách "Đã chạy xong DAT" lấy từ cloud (khóa so khớp: trung_tâm|mã_kh|mã_đk)
                 dsXong: { ds: [], khoa: {}, dang: false, loi: '' },
                 // Tab Máy DAT
@@ -136,8 +139,9 @@
                     if ('serviceWorker' in navigator) {
                         navigator.serviceWorker.addEventListener('message', (e) => {
                             const d = e.data;
-                            if (d && d.loai === 'mo' && typeof d.u === 'string' && d.u.indexOf('#may') >= 0) {
-                                if (location.hash === '#may') { this.moTheoHash(); } else { location.hash = '#may'; }
+                            if (d && d.loai === 'mo' && typeof d.u === 'string' && (d.u.indexOf('#may') >= 0 || d.u.indexOf('#ghim') >= 0)) {
+                                const dich = d.u.indexOf('#ghim') >= 0 ? '#ghim' : '#may';
+                                if (location.hash === dich) { this.moTheoHash(); } else { location.hash = dich; }
                             }
                         });
                     }
@@ -258,7 +262,7 @@
                         this.khongCoQuyen = (d.quyen || []).indexOf('TRACUU_DAT') < 0
                             ? 'Tài khoản của bạn chưa được cấp quyền Tra cứu biển số DAT.' : '';
                         if (!this.khongCoQuyen) {
-                            this.taiGoiY(); this.taiXong(); this.taiCho(true); this.taiCanhBao();
+                            this.taiGoiY(); this.taiXong(); this.taiNho(); this.taiCho(true); this.taiCanhBao();
                             this.moTheoHash();
                             this.tuDangKyLaiTb();
                         }
@@ -299,6 +303,8 @@
                     this.chon = { mo: false, loai: '', tim: '', ds: [], dich: '', nhan: {} };
                     this.ghimMuc = 'dang';
                     this.dsXong = { ds: [], khoa: {}, dang: false, loi: '' };
+                    this.nho = { bat: true, toi_nho: [], nho_toi: [], dang: false, loi: '' };
+                    this.hopNho = { mo: false, khoa: '', den: '', denTen: '', ghiChu: '', giaoMay: false, kiemMay: false, lyDoKhoa: '', dang: false, loi: '' };
                     this.may = { bien: '', dang: false, loi: '', co: false, kq: null };
                     this.dsNguoi = [];
                     this.daTaiNguoi = false;
@@ -342,6 +348,7 @@
                     window.scrollTo(0, 0);
                     if (this.khongCoQuyen) { return; }
                     if (t === 'ghim' || t === 'may') { this.taiXong(); }      // đổi tab thì nạp lại danh sách đã xong
+                    if (t === 'ghim') { this.taiNho(); }
                     if (t === 'may') { this.taiCho(false); }
                     if (t === 'kho') { this.taiKho(); this.taiCho(false); }
                 },
@@ -420,7 +427,8 @@
                     let timKem = {};
                     if (loai === 'nguoi_dung') {
                         // Nhãn CHỈ là tên người đăng ký (không hiện tên đăng nhập); gõ tên đăng nhập vẫn tìm ra (timKem)
-                        ds = this.dsNguoi.map(n => {
+                        const nguonNguoi = dich === 'nho.den' ? this.dsNguoi.filter(n => n.username !== this.user.username) : this.dsNguoi;
+                        ds = nguonNguoi.map(n => {
                             let t = String(n.ten || 'Chưa đặt tên'), k = 1;
                             const goc = t;
                             while (nhan[t]) { k += 1; t = goc + ' (' + k + ')'; }      // phòng function cũ chưa khử trùng
@@ -450,6 +458,7 @@
                             if (this.chon.dich === 'xn.den') { this.xn.den = n.username; this.xn.denTen = n.ten; }
                             if (this.chon.dich === 'bg.tu') { this.bg.tu = n.username; this.bg.tuTen = n.ten; }
                             if (this.chon.dich === 'bg.den') { this.bg.den = n.username; this.bg.denTen = n.ten; }
+                            if (this.chon.dich === 'nho.den') { this.hopNho.den = n.username; this.hopNho.denTen = n.ten; }
                         }
                         this.chon.mo = false;
                         return;
@@ -772,6 +781,7 @@
                 // Chỉ để ẩn/hiện nút — máy chủ vẫn là bên quyết định
                 // (admin, đúng chủ hồ sơ, hoặc người được ủy quyền xem hộ hồ sơ của chủ đó)
                 coTheXacNhan(r) {
+                    if (r && r._nho) { return true; }      // thẻ trong "Chạy hộ" (lời nhờ còn hiệu lực) — máy chủ vẫn kiểm lại
                     if (this.user.is_admin) { return true; }
                     const chu = this.boDauHs(r.NguoiQuanLy);
                     if (!chu) { return false; }
@@ -847,11 +857,12 @@
                                  : coLenh ? 'Đã ghi chạy xong — chờ ' + (this.xn.den === 'KHO' ? 'Kho' : this.xn.denTen) + ' xác nhận nhận máy'
                                         : 'Đã ghi nhận chạy xong DAT');
                         await this.taiXong();
+                        this.taiNho();
                         this.taiCho(false);
                         if (this.may.co) { this.taiMay(); }
                     } catch (e) {
                         this.xn.loi = e.thongBao || 'Lỗi';
-                        if (e.ma === 409) { this.taiXong(); }
+                        if (e.ma === 409) { this.taiXong(); this.taiNho(); }
                     } finally { this.xn.dang = false; }
                 },
                 async boXacNhan(r) {
@@ -860,8 +871,107 @@
                         await this.api('/dat-xong/huy', {}, { body: { trung_tam: r.TrungTam, ma_kh: r.MaKH, ma_dk: r.MaDK } });
                         this.bao('Đã bỏ xác nhận');
                         await this.taiXong();
+                        this.taiNho();
                         if (this.may.co) { this.taiMay(); }
                     } catch (e) { this.bao(e.thongBao || 'Lỗi'); }
+                },
+
+                // ---------- NHỜ GIÁO VIÊN DẠY HỘ (tab Ghim → mục "Nhờ dạy hộ") ----------
+                async taiNho() {
+                    if (!this.token || this.khongCoQuyen) { return; }
+                    this.nho.dang = true;
+                    try {
+                        const d = await this.api('/nho-day');
+                        this.nho = {
+                            bat: d.bat !== false,
+                            toi_nho: d.toi_nho || [],
+                            nho_toi: (d.nho_toi || []).map(x => Object.assign({ _nho: true }, x)),
+                            dang: false, loi: '',
+                        };
+                    } catch (e) {
+                        this.nho.dang = false;
+                        this.nho.loi = e.thongBao || 'Lỗi';
+                    }
+                },
+                // Số học viên được nhờ mà CHƯA chạy xong (băng thông báo + số trên nút)
+                get nhoToiChuaXong() { return this.nho.nho_toi.filter(r => !r.DaXong); },
+                get nhoSoViec() {
+                    return this.nho.nho_toi.filter(r => !r.DaXong).length + this.nho.toi_nho.filter(r => !r.DaXong).length;
+                },
+                // Thẻ "Đang chạy" của tôi: học viên này có đang nhờ ai không?
+                nhoDangCua(r) {
+                    const k = this.khoaGhim(r);
+                    return this.nho.toi_nho.find(x => !x.DaXong && this.khoaGhim(x) === k) || null;
+                },
+                // Học viên tôi nhờ được: đang chạy + tôi có quyền xác nhận + chưa nhờ ai
+                get dsHvNhoDuoc() { return this.dangChay.filter(r => this.coTheXacNhan(r) && !this.nhoDangCua(r)); },
+                async moHopNho(r) {
+                    this.hopNho = { mo: true, khoa: '', den: '', denTen: '', ghiChu: '', giaoMay: false, kiemMay: false, lyDoKhoa: '', dang: false, loi: '' };
+                    const ds = this.dsHvNhoDuoc;
+                    const chon = r && ds.find(x => this.khoaGhim(x) === this.khoaGhim(r)) || (ds.length === 1 ? ds[0] : null);
+                    this.taiNguoi();
+                    if (chon) { await this.datHvNho(this.khoaGhim(chon)); }
+                },
+                hvNhoDangChon() { return this.dsHvNhoDuoc.find(x => this.khoaGhim(x) === this.hopNho.khoa) || null; },
+                // Chọn học viên trong hộp → kiểm máy DAT của xe học viên có đang do tôi giữ không (quyết định ô "Giao luôn máy")
+                async datHvNho(khoa) {
+                    this.hopNho.khoa = khoa;
+                    this.hopNho.giaoMay = false;
+                    this.hopNho.lyDoKhoa = '';
+                    this.hopNho.loi = '';
+                    const r = this.hvNhoDangChon();
+                    if (!r) { return; }
+                    if (!r.BienSoXe) { this.hopNho.lyDoKhoa = 'Học viên chưa có biển số xe nên không có máy DAT để giao kèm.'; return; }
+                    this.hopNho.kiemMay = true;
+                    try {
+                        const d = await this.api('/may-dat/xe', { bien_so: r.BienSoXe });
+                        if (this.hopNho.khoa !== khoa) { return; }      // đã đổi sang học viên khác trong lúc chờ
+                        const giu = d.dang_giu || {};
+                        if (d.dang_chuyen) { this.hopNho.lyDoKhoa = 'Máy DAT của xe ' + r.BienSoXe + ' đang có lệnh chờ xác nhận nên chưa giao kèm được.'; }
+                        else if (giu.chua_ro || giu.nguoi !== this.user.username) {
+                            this.hopNho.lyDoKhoa = 'Bạn không phải người đang giữ máy DAT của xe ' + r.BienSoXe
+                                + (giu.chua_ro ? ' (chưa rõ ai giữ).' : ' (đang ở ' + (giu.ten || 'người khác') + ').');
+                        } else { this.hopNho.giaoMay = true; }      // MẶC ĐỊNH BẬT khi tôi đang giữ máy
+                    } catch (e) {
+                        if (this.hopNho.khoa === khoa) { this.hopNho.lyDoKhoa = 'Chưa kiểm tra được máy DAT (' + (e.thongBao || 'lỗi') + ') nên chưa giao kèm được.'; }
+                    } finally { if (this.hopNho.khoa === khoa) { this.hopNho.kiemMay = false; } }
+                },
+                async guiNho() {
+                    const h = this.hopNho;
+                    if (h.dang) { return; }
+                    h.loi = '';
+                    const r = this.hvNhoDangChon();
+                    if (!r) { h.loi = 'Hãy chọn học viên cần nhờ chạy hộ.'; return; }
+                    if (!h.den) { h.loi = 'Hãy chọn giáo viên được nhờ.'; return; }
+                    if ([...h.ghiChu].length > TOI_DA_GHI_CHU) { h.loi = 'Ghi chú dài quá ' + TOI_DA_GHI_CHU + ' ký tự.'; return; }
+                    h.dang = true;
+                    try {
+                        await this.api('/nho-day', {}, { body: {
+                            trung_tam: r.TrungTam, ma_kh: r.MaKH, ma_dk: r.MaDK, nguoi_nhan: h.den,
+                            ghi_chu: h.ghiChu, giao_may: !!h.giaoMay && !h.lyDoKhoa } });
+                        h.mo = false;
+                        this.bao('Đã nhờ ' + h.denTen + ' chạy hộ' + (h.giaoMay ? ' và giao kèm máy DAT' : ''));
+                        this.ghimMuc = 'ho';
+                        await this.taiNho();
+                        if (this.may.co) { this.taiMay(); }
+                    } catch (e) {
+                        h.loi = e.thongBao || 'Lỗi';
+                        if (e.ma === 409) { this.taiNho(); this.taiXong(); }
+                    } finally { h.dang = false; }
+                },
+                // `hanhDong`: 'huy' (tôi nhờ → hủy) · 'tra_lai' (tôi được nhờ → trả lại)
+                async dongNho(n, hanhDong) {
+                    const hoi = hanhDong === 'huy' ? 'Hủy lời nhờ chạy hộ ' + (n.HoVaTen || 'học viên này') + '?'
+                                                    : 'Trả lại lời nhờ chạy hộ ' + (n.HoVaTen || 'học viên này') + '?';
+                    if (!window.confirm(hoi)) { return; }
+                    try {
+                        await this.api('/nho-day/dong', {}, { body: { id: n.id, hanh_dong: hanhDong } });
+                        this.bao(hanhDong === 'huy' ? 'Đã hủy lời nhờ' : 'Đã trả lại lời nhờ');
+                        await this.taiNho();
+                    } catch (e) {
+                        this.bao(e.thongBao || 'Lỗi');
+                        this.taiNho();
+                    }
                 },
 
                 // ---------- tab Máy DAT ----------
@@ -1347,7 +1457,14 @@
                 },
                 // Mở từ thông báo đẩy: `#may` → tab Máy DAT + hộp "Chờ bạn xác nhận"; xong thì xóa hash
                 moTheoHash() {
-                    if (location.hash !== '#may' || !this.token || this.khongCoQuyen) { return; }
+                    if (!this.token || this.khongCoQuyen) { return; }
+                    if (location.hash === '#ghim') {      // thông báo "Nhờ chạy DAT hộ": tab Ghim → mục Nhờ dạy hộ
+                        this.doiTab('ghim');
+                        this.ghimMuc = 'ho';
+                        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* bỏ qua */ }
+                        return;
+                    }
+                    if (location.hash !== '#may') { return; }
                     this.taiCho(true);
                     this.doiTab('may');
                     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* bỏ qua */ }

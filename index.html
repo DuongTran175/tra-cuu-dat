@@ -287,7 +287,14 @@
                             x-text="'Đang chạy (' + dangChay.length + ')'"></button>
                     <button type="button" :class="ghimMuc === 'xong' ? 'active' : ''" @click="ghimMuc = 'xong'; taiXong()"
                             x-text="'Đã hoàn thành DAT (' + xongCuaToi.length + ')'"></button>
+                    <button type="button" x-show="nho.bat" :class="ghimMuc === 'ho' ? 'active' : ''" @click="ghimMuc = 'ho'; taiNho()"
+                            x-text="'Nhờ dạy hộ' + (nhoSoViec > 0 ? ' (' + nhoSoViec + ')' : '')"></button>
                 </div>
+                <!-- Băng thông báo: có học viên được nhờ chạy hộ mà chưa xong -->
+                <button type="button" class="nho-bang" x-show="nho.bat && nhoToiChuaXong.length > 0 && ghimMuc !== 'ho'" @click="ghimMuc = 'ho'">
+                    <svg class="ic" width="18" height="18"><use href="#i-user"/></svg>
+                    <span x-text="'Bạn đang được nhờ chạy hộ ' + nhoToiChuaXong.length + ' học viên'"></span>
+                </button>
                 <div class="card the-loc" x-show="(ghimMuc === 'dang' && ghim.length > 0) || (ghimMuc === 'xong' && xongCuaToi.length > 0)">
                     <input id="g-tim" type="search" x-model="ghimTim" @input="cuonKetQuaGhim()" autocomplete="off" placeholder="Lọc theo biển số, tên, mã ĐK…" aria-label="Lọc phần đã ghim">
                     <div class="luoi" style="margin-top:8px;">
@@ -370,9 +377,14 @@
                                 <summary x-text="'Xe chạy phiên' + (r.XePhienNhan ? ' — ' + r.XePhienNhan : '') + ' (' + (r.XePhien || []).length + ')'"></summary>
                                 <div class="phien-ds"><template x-for="b in dsPhien(r)" :key="b"><span x-text="b"></span></template></div>
                             </details>
+                            <div class="hv-dong tim" x-show="nhoDangCua(r)">
+                                <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
+                                <span x-text="'Đang nhờ ' + (nhoDangCua(r) ? nhoDangCua(r).NguoiNhanTen : '') + ' chạy hộ'"></span>
+                            </div>
                             <div class="hv-chan" x-show="r.BienSoXe || coTheXacNhan(r)">
                                 <button type="button" class="nut phu nho" x-show="r.BienSoXe" @click="moXeTuHV(r)">Xem cả xe</button>
                                 <button type="button" class="nut nho" x-show="coTheXacNhan(r)" @click="moXacNhan(r)">Đã chạy xong</button>
+                                <button type="button" class="nut phu nho" x-show="nho.bat && coTheXacNhan(r) && !nhoDangCua(r)" @click="moHopNho(r)">Nhờ dạy hộ</button>
                             </div>
                             <div class="pin-vach">Ghim ngày <span x-text="r._ghim_luc"></span></div>
                         </div>
@@ -425,6 +437,105 @@
                             </div>
                         </div>
                     </template>
+                </div>
+
+                <!-- ----- Mục Nhờ dạy hộ (dữ liệu từ máy chủ) — khối ĐỨNG RIÊNG, không lồng trong khối khác ----- -->
+                <div x-show="ghimMuc === 'ho'" id="muc-nho">
+                    <div class="empty-state loi-trang" x-show="nho.loi">
+                        <svg class="ic" width="40" height="40"><use href="#i-alert"/></svg>
+                        <div x-text="nho.loi"></div>
+                    </div>
+                    <div class="empty-state" x-show="!nho.bat">
+                        <svg class="ic" width="40" height="40"><use href="#i-alert"/></svg>
+                        <div>Tính năng nhờ dạy hộ chưa được bật trên máy chủ.</div>
+                    </div>
+                    <div x-show="nho.bat">
+                        <button type="button" class="nut rong" @click="moHopNho(null)">+ Nhờ giáo viên dạy hộ</button>
+
+                        <div class="nho-tieu">Chạy hộ cho người khác (<span x-text="nho.nho_toi.length"></span>)</div>
+                        <div class="empty-state" x-show="!nho.dang && nho.nho_toi.length === 0">
+                            <div>Chưa có ai nhờ bạn chạy hộ.</div>
+                        </div>
+                        <template x-for="r in nho.nho_toi" :key="'nt' + r.id">
+                            <div class="card hv-the">
+                                <div class="hv-dau">
+                                    <div style="min-width:0;">
+                                        <div class="hv-ten" x-text="r.HoVaTen"></div>
+                                        <div class="hv-ma" x-text="r.MaDK"></div>
+                                    </div>
+                                    <span class="badge" x-show="r.HangGPLX" x-text="r.HangGPLX"></span>
+                                </div>
+                                <div class="hv-khoa" x-show="r.TenKhoa" x-text="r.TenKhoa"></div>
+                                <div class="hv-dong" x-show="r.NgayKG || r.NgayBG">
+                                    <svg class="ic" width="16" height="16"><use href="#i-cal"/></svg>
+                                    <span x-text="(r.NgayKG || '?') + ' – ' + (r.NgayBG || '?')"></span>
+                                </div>
+                                <div class="hv-dong" x-show="r.SoCMT">
+                                    <svg class="ic" width="16" height="16"><use href="#i-id"/></svg>
+                                    <span x-text="'CCCD ' + r.SoCMT"></span>
+                                </div>
+                                <div class="hv-dong" x-show="r.NgaySinh">
+                                    <svg class="ic" width="16" height="16"><use href="#i-cake"/></svg>
+                                    <span x-text="'Sinh ' + r.NgaySinh"></span>
+                                </div>
+                                <div class="hv-dong" x-show="r.BienSoXe">
+                                    <svg class="ic" width="16" height="16"><use href="#i-car"/></svg>
+                                    <span x-text="r.BienSoXe"></span>
+                                </div>
+                                <div class="hv-dong" x-show="r.TenGV">
+                                    <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
+                                    <span x-text="r.TenGV"></span>
+                                </div>
+                                <div class="hv-dong tim">
+                                    <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
+                                    <span x-text="'Nhờ bởi: ' + r.NguoiNhoTen"></span>
+                                </div>
+                                <div class="hv-dong" x-show="r.GiaoMay">
+                                    <svg class="ic" width="16" height="16"><use href="#i-may"/></svg>
+                                    <span x-text="'Đã giao kèm máy DAT' + (r.BienGiao ? ' ' + r.BienGiao : '') + ' cho bạn'"></span>
+                                </div>
+                                <div class="xong-ghi-chu" x-show="r.GhiChu" x-text="r.GhiChu"></div>
+                                <div class="hv-dong" x-show="r.DaXong">
+                                    <svg class="ic" width="16" height="16"><use href="#i-cal"/></svg>
+                                    <span x-text="'Đã chạy xong — ' + r.NguoiGhiTen"></span>
+                                </div>
+                                <div class="chua-co" x-show="!r.ConTrongBanChup && !r.DaXong">Học viên không còn trong dữ liệu — không xác nhận được.</div>
+                                <div class="hv-chan">
+                                    <button type="button" class="nut nho" x-show="!r.DaXong && r.ConTrongBanChup" @click="moXacNhan(r)">Đã chạy xong</button>
+                                    <button type="button" class="nut phu nho" x-show="!r.DaXong" @click="dongNho(r, 'tra_lai')">Trả lại</button>
+                                    <button type="button" class="nut phu nho" x-show="r.DaXong && r.CoTheHuy" @click="boXacNhan(r)">Bỏ xác nhận</button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="nho-tieu">Tôi nhờ người khác (<span x-text="nho.toi_nho.length"></span>)</div>
+                        <div class="empty-state" x-show="!nho.dang && nho.toi_nho.length === 0">
+                            <div>Bạn chưa nhờ ai chạy hộ. Bấm “Nhờ dạy hộ” ở thẻ học viên đang chạy.</div>
+                        </div>
+                        <template x-for="n in nho.toi_nho" :key="'tn' + n.id">
+                            <div class="card">
+                                <div class="hv-dau">
+                                    <div style="min-width:0;">
+                                        <div class="hv-ten" x-text="n.HoVaTen"></div>
+                                        <div class="hv-ma" x-text="n.MaDK"></div>
+                                    </div>
+                                    <span class="badge" x-show="n.DaXong">Đã xong</span>
+                                </div>
+                                <div class="hv-dong tim">
+                                    <svg class="ic" width="16" height="16"><use href="#i-user"/></svg>
+                                    <span x-text="'Nhờ ' + n.NguoiNhanTen"></span>
+                                </div>
+                                <div class="hv-dong" x-show="n.GiaoMay">
+                                    <svg class="ic" width="16" height="16"><use href="#i-may"/></svg>
+                                    <span x-text="'Đã giao kèm máy DAT' + (n.BienGiao ? ' ' + n.BienGiao : '')"></span>
+                                </div>
+                                <div class="xong-ghi-chu" x-show="n.GhiChu" x-text="n.GhiChu"></div>
+                                <div class="hv-chan" x-show="!n.DaXong">
+                                    <button type="button" class="nut phu nho" @click="dongNho(n, 'huy')">Hủy lời nhờ</button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </section>
 
@@ -689,6 +800,44 @@
                     <button type="button" class="nut rong" style="margin-top:12px;" :disabled="xn.dang" @click="guiXacNhan()">
                         <span class="xoay" x-show="xn.dang"></span>
                         <span x-text="xn.dang ? 'Đang ghi…' : 'Đã chạy xong'"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== Hộp "Nhờ giáo viên dạy hộ" (giữa màn) ===== -->
+        <div class="giua-boc" id="hop-nho" x-show="hopNho.mo" x-cloak @click.self="hopNho.mo = false" @keydown.escape.window="hopNho.mo = false">
+            <div class="chon-sheet giua">
+                <div class="chon-than">
+                    <div class="sheet-dau">
+                        <div class="sheet-tieu-de">Nhờ giáo viên dạy hộ</div>
+                        <button type="button" class="nut phu nho" @click="hopNho.mo = false">Đóng</button>
+                    </div>
+                    <label for="nho-hv">Học viên cần chạy hộ</label>
+                    <select id="nho-hv" :value="hopNho.khoa" @change="datHvNho($event.target.value)">
+                        <option value="">Chọn học viên…</option>
+                        <template x-for="r in dsHvNhoDuoc" :key="khoaGhim(r)">
+                            <option :value="khoaGhim(r)" :selected="khoaGhim(r) === hopNho.khoa" x-text="r.HoVaTen + ' — ' + r.MaDK"></option>
+                        </template>
+                    </select>
+                    <div class="phu nho" style="margin:6px 0;" x-show="dsHvNhoDuoc.length === 0">Không có học viên đang chạy nào bạn nhờ được (chỉ chủ hồ sơ / người được xem hộ / quản trị viên được nhờ).</div>
+                    <label>Giáo viên được nhờ</label>
+                    <button type="button" class="o-chon" @click="moChon('nguoi_dung', 'nho.den')" aria-label="Chọn giáo viên được nhờ">
+                        <span :class="hopNho.den ? 'da-chon' : 'hint'" x-text="hopNho.den ? hopNho.denTen : 'Chọn giáo viên'"></span>
+                    </button>
+                    <label class="nho-tick" x-show="hopNho.khoa">
+                        <input type="checkbox" x-model="hopNho.giaoMay" :disabled="!!hopNho.lyDoKhoa || hopNho.kiemMay">
+                        <span x-text="'Giao luôn máy DAT của xe ' + ((hvNhoDangChon() && hvNhoDangChon().BienSoXe) || '') + ' cho thầy được nhờ'"></span>
+                    </label>
+                    <div class="phu nho" style="margin:2px 0 8px;" x-show="hopNho.khoa && hopNho.kiemMay">Đang kiểm tra máy DAT của xe…</div>
+                    <div class="phu nho" style="margin:2px 0 8px;" x-show="hopNho.khoa && hopNho.lyDoKhoa" x-text="hopNho.lyDoKhoa"></div>
+                    <div class="phu nho" style="margin:2px 0 8px;" x-show="hopNho.khoa && hopNho.giaoMay">Máy đổi người giữ NGAY, thầy được nhờ không cần xác nhận nhận máy.</div>
+                    <label for="nho-ghi-chu">Ghi chú</label>
+                    <textarea id="nho-ghi-chu" x-model="hopNho.ghiChu" maxlength="300" rows="3" placeholder="Ghi thêm (không bắt buộc)…"></textarea>
+                    <div class="loi" x-show="hopNho.loi" x-text="hopNho.loi"></div>
+                    <button type="button" class="nut rong" style="margin-top:12px;" :disabled="hopNho.dang || hopNho.kiemMay" @click="guiNho()">
+                        <span class="xoay" x-show="hopNho.dang"></span>
+                        <span x-text="hopNho.dang ? 'Đang gửi…' : 'Gửi lời nhờ'"></span>
                     </button>
                 </div>
             </div>
