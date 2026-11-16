@@ -614,8 +614,11 @@
                                 <span class="badge xam" x-show="h.da_hoan_tac">Đã hoàn tác</span>
                                 <span class="phu nho" x-text="gioVn(h.luc)"></span>
                             </div>
-                            <div class="nk-chuyen">
+                            <div class="nk-chuyen" x-show="h.loai !== 'chay_ghi_nhan'">
                                 <b x-text="h.tu_ten"></b><span class="mui-ten">→</span><b x-text="h.den_ten"></b>
+                            </div>
+                            <div class="nk-chuyen" x-show="h.loai === 'chay_ghi_nhan'">
+                                <span x-text="'Máy lúc đó do ' + (h.den_ten || 'Kho') + ' giữ — không đổi người giữ'"></span>
                             </div>
                             <div class="phu nho" x-text="'Ghi bởi ' + h.nguoi_ghi_ten"></div>
                             <div class="hv-dong" x-show="h.hv_ten">
@@ -771,14 +774,31 @@
                     <div class="hv-ma" x-text="xn.r.MaDK"></div>
                     <label for="xn-bien">Biển số xe (máy DAT)</label>
                     <input id="xn-bien" type="text" readonly :value="xn.r.BienSoXe || ''" placeholder="Học viên chưa có biển số">
-                    <label>Máy DAT chuyển đi đâu?</label>
-                    <div class="phan-doan">
+                    <div class="xn-tt" x-show="xn.r.BienSoXe && xn.tt === 'dang_kiem'"><span class="xoay"></span><span>Đang kiểm tra máy DAT…</span></div>
+                    <div class="xn-tt" x-show="xn.tt === 'loi'">Chưa kiểm tra được máy DAT — máy chủ sẽ tự quyết người giữ máy.</div>
+                    <div class="xn-tt ghi-nhan" x-show="xn.tt === 'nguoi_khac'">
+                        <span class="badge xam">Người khác giữ</span>
+                        <div x-text="'Máy DAT ' + (xn.r.BienSoXe || '') + ' hiện do ' + xn.giuTen + ' giữ (từ ' + gioVn(xn.giuLuc) + ')'"></div>
+                        <div class="phu nho">Bạn chỉ ghi nhận chạy xong, không đổi người giữ máy.</div>
+                    </div>
+                    <div class="xn-tt ghi-nhan" x-show="xn.tt === 'kho'">
+                        <span class="badge xam">Máy ở kho</span>
+                        <div x-text="'Máy DAT ' + (xn.r.BienSoXe || '') + ' đang ở kho'"></div>
+                        <div class="phu nho">Bạn chỉ ghi nhận chạy xong, không đổi người giữ máy.<span x-show="coQuyenKho()"> Muốn đổi người giữ, dùng "Kho ghi thay" ở trang Kho.</span></div>
+                    </div>
+                    <div class="xn-tt ghi-nhan" x-show="xn.tt === 'dang_chuyen'">
+                        <span class="badge cho">Đang chuyển</span>
+                        <div x-text="'Máy DAT ' + (xn.r.BienSoXe || '') + ' đang chuyển từ ' + xn.chuyenTu + ' cho ' + xn.chuyenDen + ' (chờ xác nhận)'"></div>
+                        <div class="phu nho">Bạn chỉ ghi nhận chạy xong, không đổi người giữ máy.</div>
+                    </div>
+                    <label x-show="!xnChiGhiNhan()">Máy DAT chuyển đi đâu?</label>
+                    <div class="phan-doan" x-show="!xnChiGhiNhan()">
                         <button type="button" :class="xn.kieu === 'nguoi' ? 'active' : ''" @click="chonKieuXn('nguoi')">Giao cho…</button>
                         <button type="button" :class="xn.kieu === 'kho' ? 'active' : ''" @click="chonKieuXn('kho')">Về kho</button>
                         <button type="button" :class="xn.kieu === 'giu' ? 'active' : ''" @click="chonKieuXn('giu')">Tôi vẫn giữ máy</button>
                     </div>
-                    <div class="phu nho" style="margin:-4px 0 8px;" x-text="xn.kieu === 'giu' ? 'Máy vẫn ở chỗ bạn, không tạo lệnh bàn giao (dùng khi còn học viên khác chạy cùng xe).' : xn.kieu === 'nguoi' ? 'Giao cho ' + (xn.denTen || 'người nhận') + ' (người đó phải xác nhận). Máy chỉ đổi người giữ khi họ bấm Nhận.' : 'Về kho (kho phải xác nhận). Máy chỉ về kho khi kho bấm Nhận.'"></div>
-                    <button type="button" class="o-chon" x-show="xn.kieu === 'nguoi'" @click="moChon('nguoi_dung', 'xn.den')" aria-label="Chọn người nhận máy">
+                    <div class="phu nho" style="margin:-4px 0 8px;" x-show="!xnChiGhiNhan()" x-text="xn.kieu === 'giu' ? 'Máy vẫn ở chỗ bạn, không tạo lệnh bàn giao (dùng khi còn học viên khác chạy cùng xe).' : xn.kieu === 'nguoi' ? 'Giao cho ' + (xn.denTen || 'người nhận') + ' (người đó phải xác nhận). Máy chỉ đổi người giữ khi họ bấm Nhận.' : 'Về kho (kho phải xác nhận). Máy chỉ về kho khi kho bấm Nhận.'"></div>
+                    <button type="button" class="o-chon" x-show="xn.kieu === 'nguoi' && !xnChiGhiNhan()" @click="moChon('nguoi_dung', 'xn.den')" aria-label="Chọn người nhận máy">
                         <span :class="xn.den ? 'da-chon' : 'hint'" x-text="xn.den ? xn.denTen : 'Chọn người nhận máy'"></span>
                     </button>
                     <label>Tình trạng máy</label>

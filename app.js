@@ -808,10 +808,37 @@
 
                 async moXacNhan(r) {
                     if (r && r.CuaBan === false) { return; }      // HV người khác: server cũng từ chối, chặn sớm cho gọn
-                    this.xn = { mo: true, r: r, kieu: 'nguoi', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', dang: false, loi: '' };
+                    // tt: tình trạng máy lúc mở hộp — '' (chưa kiểm / không biển) | 'dang_kiem' | 'toi' | 'chua_ro' | 'nguoi_khac' | 'kho' | 'dang_chuyen' | 'loi'
+                    this.xn = { mo: true, r: r, kieu: 'nguoi', den: '', denTen: '', tinhTrang: '', boPhan: [], ghiChu: '', dang: false, loi: '',
+                                tt: '', giuTen: '', giuLuc: '', chuyenTu: '', chuyenDen: '' };
                     // Mặc định LUÔN là "Giao cho…" (Về kho / Tôi vẫn giữ máy là lựa chọn sau)
+                    if (r && r.BienSoXe) { this.kiemMayXn(r); }
                     await this.taiNguoi();
                 },
+                // Hỏi tình trạng máy DAT của xe: chỉ NGƯỜI ĐANG GIỮ (hoặc máy chưa từng có ghi nhận) mới bàn giao được từ hộp này;
+                // người khác giữ / máy ở kho / đang chuyển thì chỉ ghi nhận chạy xong (máy chủ cũng quyết như vậy)
+                async kiemMayXn(r) {
+                    const xn = this.xn;
+                    xn.tt = 'dang_kiem';
+                    try {
+                        const d = await this.api('/may-dat/xe', { bien_so: r.BienSoXe });
+                        if (this.xn !== xn || !xn.mo) { return; }      // đã đóng / mở hộp khác trong lúc chờ
+                        const giu = d.dang_giu || {};
+                        if (d.dang_chuyen) {
+                            xn.tt = 'dang_chuyen';
+                            xn.chuyenTu = d.dang_chuyen.tu_ten || 'người giữ';
+                            xn.chuyenDen = d.dang_chuyen.den === 'KHO' ? 'Kho' : (d.dang_chuyen.den_ten || 'người nhận');
+                        } else if (giu.chua_ro) { xn.tt = 'chua_ro'; }
+                        else if (giu.nguoi === this.user.username) { xn.tt = 'toi'; }
+                        else if (giu.nguoi === 'KHO') { xn.tt = 'kho'; xn.giuLuc = giu.luc || ''; }
+                        else { xn.tt = 'nguoi_khac'; xn.giuTen = giu.ten || 'người khác'; xn.giuLuc = giu.luc || ''; }
+                        if (xn.tt === 'nguoi_khac' || xn.tt === 'kho' || xn.tt === 'dang_chuyen') { this.chonKieuXn('giu'); }
+                    } catch (e) {
+                        if (this.xn === xn) { xn.tt = 'loi'; }
+                    }
+                },
+                // Hộp chỉ ghi nhận (không đổi người giữ máy): ẩn 3 nút kiểu + ô chọn người
+                xnChiGhiNhan() { return !!this.xn && (this.xn.tt === 'nguoi_khac' || this.xn.tt === 'kho' || this.xn.tt === 'dang_chuyen'); },
                 async taiNguoi() {
                     // Mỗi lần mở hộp tải lại (tài khoản mới hiện ngay); danh sách cũ vẫn dùng được trong lúc chờ
                     try {
@@ -853,7 +880,13 @@
                         // Giao cho người khác / về kho: máy CHƯA đổi tay cho tới khi bên kia bấm Nhận
                         const coLenh = !!(d && d.ket_qua && d.ket_qua.lenh_id);
                         const treoSan = !!(d && d.lenh_treo_san);
-                        this.bao(treoSan ? 'Đã ghi chạy xong — máy đang có lệnh chờ, không tạo lệnh mới'
+                        if (d && d.che_do === 'ghi_nhan') {
+                            // Máy chủ chỉ ghi nhận (máy đã đổi tay giữa lúc mở hộp và lúc gửi cũng rơi vào đây)
+                            this.bao('Đã ghi chạy xong — máy DAT ' + (d.ly_do === 'kho' ? 'đang ở kho'
+                                     : d.ly_do === 'dang_chuyen' ? 'đang chuyển (chờ xác nhận)'
+                                     : 'vẫn do ' + (d.nguoi_giu_ten || 'người đang giữ') + ' giữ')
+                                     + ', không đổi người giữ');
+                        } else this.bao(treoSan ? 'Đã ghi chạy xong — máy đang có lệnh chờ, không tạo lệnh mới'
                                  : coLenh ? 'Đã ghi chạy xong — chờ ' + (this.xn.den === 'KHO' ? 'Kho' : this.xn.denTen) + ' xác nhận nhận máy'
                                         : 'Đã ghi nhận chạy xong DAT');
                         await this.taiXong();
@@ -994,7 +1027,8 @@
                 },
                 nhanLoai(l) {
                     return { chay_xong: 'Chạy xong', ban_giao: 'Bàn giao', hoan_tac: 'Hoàn tác',
-                             lenh_de_nghi: 'Đề nghị', lenh_tu_choi: 'Từ chối', lenh_huy: 'Hủy lệnh' }[l] || l;
+                             lenh_de_nghi: 'Đề nghị', lenh_tu_choi: 'Từ chối', lenh_huy: 'Hủy lệnh',
+                             chay_ghi_nhan: 'Chạy xong (không đổi người giữ)' }[l] || l;
                 },
                 // Khóa x-for cho dòng lịch sử: dòng nhật ký có id, sự kiện của lệnh không có id
                 khoaNk(h) { return h.id ? 'n' + h.id : 'l' + h.lenh_id + '-' + h.loai; },

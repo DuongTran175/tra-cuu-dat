@@ -316,6 +316,11 @@ svg { flex-shrink: 0; }
 .badge.nk-chay_xong { background: rgba(46,125,50,.14); color: var(--success); }
 .badge.nk-ban_giao { background: var(--accent-light); color: var(--accent-text); }
 .badge.nk-hoan_tac { background: var(--warning-bg); color: var(--warning); }
+.badge.nk-chay_ghi_nhan { background: var(--border); color: var(--text-sub); }
+.xn-tt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; padding: 9px 12px; border-radius: 10px;
+         background: var(--bg); border: 1px solid var(--border); font-size: 13px; color: var(--text-sub); }
+.xn-tt.ghi-nhan { background: var(--accent-light); color: var(--accent-text); border-color: transparent; }
+.xn-tt.ghi-nhan > div { flex: 1 0 100%; }
 .may-giu { border-left: 4px solid var(--accent); }
 .may-nguoi { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .nk-dong.da-an { opacity: .6; border-style: dashed; }
